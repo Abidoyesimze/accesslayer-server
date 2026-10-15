@@ -108,11 +108,6 @@ export async function upsertPriceSnapshot(
          return;
       }
 
-      // Skip write when price is unchanged.
-      if (existing.currentPrice.toString() === price.toString()) {
-         return;
-      }
-
       // Promote currentPrice → price24hAgo when the snapshot is older than 24 h.
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const shouldRotate24h =
