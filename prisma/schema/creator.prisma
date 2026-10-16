@@ -7,6 +7,10 @@ model CreatorProfile {
   displayName       String
   bio               String?
   avatarUrl         String?
+  avatarCid         String?  @map("avatar_cid")
+  twitter           String?
+  website           String?
+  discord           String?
   perkSummary       String?
   isVerified        Boolean  @default(false)
   tradingPaused     Boolean  @default(false)
