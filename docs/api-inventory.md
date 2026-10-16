@@ -84,8 +84,8 @@ Centralised Soroban contract interaction service (#899).
 
 - Service reference (retry, error classification, tracking, events): [`docs/soroban-contract-service.md`](./soroban-contract-service.md).
 
-| Method | Path             | Description                                                            |
-| :----- | :--------------- | :--------------------------------------------------------------------- |
+| Method | Path              | Description                                                            |
+| :----- | :---------------- | :--------------------------------------------------------------------- |
 | `POST` | `/contracts/call` | Submit a signed contract transaction through the centralised pipeline. |
 
 ## Metrics Module
@@ -116,6 +116,20 @@ Staking reward multiplier tiers and position calculations (#942).
 | `GET`  | `/staking/positions/:id/effective-weight` | Return the weighted stake calculation for a specific position.                            |
 | `GET`  | `/staking/positions/:id`                  | Return a single staking position with embedded tier data and effective weight.            |
 | `GET`  | `/staking/positions`                      | List staking positions with embedded tier data.                                           |
+
+## Governance Module
+
+Snapshot governance proposals (#878). Voting weight is the voter's staked
+balance frozen at the proposal's snapshot block, so keys moved after creation
+cannot change a vote's weight. Quorum is checked when the proposal closes and
+the status transitions `active` → `passed` / `failed` / `quorum_not_met`.
+
+| Method | Path                               | Description                                                                                  |
+| :----- | :--------------------------------- | :------------------------------------------------------------------------------------------- |
+| `GET`  | `/governance/proposals`            | List proposals with vote tallies and status (filter by `status`, `keyId`; cursor-paginated). |
+| `POST` | `/governance/proposals`            | Create a proposal and freeze snapshot voting weights (requires the key creator's JWT).       |
+| `POST` | `/governance/proposals/:id/vote`   | Cast a vote weighted by the wallet's snapshot staked balance (requires JWT).                 |
+| `GET`  | `/governance/proposals/escalating` | List proposals currently in quorum escalation (#935).                                        |
 
 ---
 
