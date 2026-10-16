@@ -4,6 +4,7 @@ import { TspecDocsMiddleware } from 'tspec';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware'; // Add notFoundHandler import
 import router from './modules/index';
 import stakingRouter from './modules/staking/staking.routes';
+import statusRouter from './modules/status/status.routes';
 import { corsMiddleware } from './middlewares/cors.middleware';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -95,6 +96,7 @@ app.get('/', (_, res: Response) => {
 });
 
 // Routes
+app.use('/status', routeBodySizeLimit('default'), statusRouter);
 app.use('/api/v1', router);
 app.use('/staking', routeBodySizeLimit('default'), stakingRouter);
 

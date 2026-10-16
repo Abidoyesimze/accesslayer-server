@@ -4,6 +4,7 @@ import { queryCostGovernor } from '../middlewares/query-cost-governor.middleware
 
 import authRouter from './auth/auth.routes';
 import healthRouter from './health/health.routes';
+import statusRouter from './status/status.routes';
 import configRouter from './config/config.routes';
 import creatorsRouter from './creators/creators.routes';
 import creatorRouter from './creator/creator.routes';
@@ -61,6 +62,7 @@ router.use(queryCostGovernor());
 // docs/body-size-limits.md). Groups without a dedicated override share
 // BODY_SIZE_LIMIT_DEFAULT.
 router.use('/health', routeBodySizeLimit('default'), healthRouter);
+router.use('/status', routeBodySizeLimit('default'), statusRouter);
 router.use('/auth', routeBodySizeLimit('auth'), authRouter);
 router.use('/config', routeBodySizeLimit('default'), configRouter);
 router.use(CREATORS_BASE, routeBodySizeLimit('creators'), creatorsRouter);

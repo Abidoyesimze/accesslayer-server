@@ -32,6 +32,10 @@ import {
    startFlashLoanViolationCleanupJob,
    stopFlashLoanViolationCleanupJob,
 } from './jobs/flash-loan-violation-cleanup.job';
+import {
+   startStatusProbeJob,
+   stopStatusProbeJob,
+} from './jobs/status-probe.job';
 import { connectRedis, disconnectRedis } from './utils/redis.utils';
 import { broadcastServerClosing, closeAllConnections } from './utils/sse-fanout.utils';
 import { buildStartupConfigSummary } from './utils/config-summary.utils';
@@ -88,6 +92,7 @@ async function startServer() {
       startPriceHistoryCleanupJob();
       startTwapComputationJob();
       startFlashLoanViolationCleanupJob();
+      startStatusProbeJob();
       initKeyCreationMetadataSync();
 
       const server = app.listen(envConfig.PORT, () => {
@@ -127,6 +132,7 @@ function createGracefulShutdownHandler(server: ReturnType<typeof app.listen>) {
       stopPriceHistoryCleanupJob();
       stopTwapComputationJob();
       stopFlashLoanViolationCleanupJob();
+      stopStatusProbeJob();
       await prisma.$disconnect();
       logger.info('Database connection closed');
 
