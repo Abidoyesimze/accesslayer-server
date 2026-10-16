@@ -134,6 +134,10 @@ import {
    QuantityExceedsLimitError,
    BatchSizeExceedsLimitError,
 } from './key-simulate.service';
+import {
+   getKeyPrice,
+   KeyNotFoundError as PriceKeyNotFoundError,
+} from './key-price.service';
 import { getKeyTwap } from './key-twap-window.service';
 
 const priceHistoryQuerySchema = z.object({
@@ -199,6 +203,15 @@ const buybackExecuteBodySchema = z.object({
          v => !isNaN(parseFloat(v)) && parseFloat(v) > 0,
          'amountXlm must be a positive number'
       ),
+});
+
+const keyPriceQuerySchema = z.object({
+   quantity: z.coerce
+      .number()
+      .int('quantity must be an integer')
+      .min(1, 'quantity must be at least 1')
+      .max(1_000_000, 'quantity must be at most 1,000,000')
+      .default(1),
 });
 
 const router = Router();
@@ -1101,6 +1114,59 @@ router.get('/:keyId/price-impact', async (req, res, next) => {
       logger.error(
          { error, keyId: req.params.keyId },
          'Price impact calculation failed'
+      );
+      next(error);
+   }
+});
+
+/**
+ * GET /api/v1/keys/:keyId/price?quantity=1
+ *
+ * Returns the current bonding-curve buy and sell price for a given quantity
+ * of keys, using the piecewise integral model that matches the on-chain curve.
+ *
+ * Query parameters:
+ *   - quantity (integer, 1..1_000_000, default 1) — number of keys to price.
+ *
+ * Response fields (all bigint values serialised as strings):
+ *   - keyId            — resolved creator profile id
+ *   - quantity         — echoed back
+ *   - currentSupply    — current circulating supply
+ *   - buy.unitPrice    — average cost per key (stroops)
+ *   - buy.totalCost    — total cost for `quantity` keys (stroops)
+ *   - sell             — null when quantity > supply, otherwise:
+ *       - sell.unitPrice    — average proceeds per key (stroops)
+ *       - sell.totalProceeds    — total proceeds for `quantity` keys (stroops)
+ *   - priceImpactPercent — signed % deviation of buy unit price vs spot price
+ *
+ * Errors:
+ *   404 — key not found
+ *   400 — invalid quantity
+ */
+router.get('/:keyId/price', async (req, res, next) => {
+   const parsed = keyPriceQuerySchema.safeParse(req.query);
+   if (!parsed.success) {
+      sendValidationError(
+         res,
+         'Invalid price query',
+         zodIssuesToDetails(parsed.error.issues)
+      );
+      return;
+   }
+
+   try {
+      const keyId = String(req.params.keyId);
+      const { quantity } = parsed.data;
+      const result = await getKeyPrice(keyId, quantity);
+      sendSuccess(res, result);
+   } catch (error) {
+      if (error instanceof PriceKeyNotFoundError) {
+         sendNotFound(res, 'Key');
+         return;
+      }
+      logger.error(
+         { error, keyId: req.params.keyId },
+         'GET /keys/:keyId/price failed'
       );
       next(error);
    }
