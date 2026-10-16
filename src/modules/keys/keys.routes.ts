@@ -716,7 +716,7 @@ router.get('/:keyId/curve-config', async (req, res, next) => {
 // ── GET /:keyId/twap (#866) ───────────────────────────────────
 // Distinct from GET /:keyId/price/twap (#963): this endpoint serves the
 // 1h/24h/7d window set and returns twapPrice/windowLedgers/snapshotCount,
-// with twapPrice null when fewer than two snapshots fall in the window.
+// with a time-weighted price from trade history and a spot-price fallback.
 
 const twapWindowQuerySchema = z.object({
    window: z.enum(['1h', '24h', '7d'], {
