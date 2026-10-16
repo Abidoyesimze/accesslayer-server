@@ -38,6 +38,10 @@ import { envConfig } from '../../config';
 import { getKeyProposals, getProposalForVoting } from './key-proposals.service';
 import { getKeySupply } from './key-supply.service';
 import { httpGetKeyLeaderboard } from './key-leaderboard.controller';
+import {
+   httpGetHolderLeaderboard,
+   httpGetHolderRank,
+} from './key-holder-leaderboard.controller';
 
 import { KeySearchQueryTooShortError, searchKeys } from './key-search.service';
 import { KEY_SEARCH_MIN_QUERY_LENGTH } from '../../constants/notifications.constants';
@@ -497,6 +501,19 @@ router.get('/:keyId/analytics', async (req, res, next) => {
       next(error);
    }
 });
+
+/**
+ * GET /api/v1/keys/:keyId/holders/leaderboard?limit=&cursor=
+ * Top 100 holders by balance with rank, supply % and first-purchase date.
+ * Cached for 5 minutes and refreshed on every trade/transfer event (#1013).
+ */
+router.get('/:keyId/holders/leaderboard', httpGetHolderLeaderboard);
+
+/**
+ * GET /api/v1/keys/:keyId/holders/:wallet/rank
+ * Rank and balance of a single wallet under the leaderboard ordering (#1013).
+ */
+router.get('/:keyId/holders/:wallet/rank', httpGetHolderRank);
 
 /**
  * GET /api/v1/keys/:keyId/circuit-breaker?limit=&offset=

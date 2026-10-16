@@ -33,6 +33,7 @@ import {
    computeCostBasisAfterSale,
    computeRealisedPnlForSale,
 } from '../ownership/ownership.service';
+import { onHolderBalanceChanged } from '../keys/key-holder-leaderboard.service';
 import { recordHoldingSnapshot } from '../portfolio/holding-snapshot.service';
 import {
    logSlippageRejection,
@@ -248,6 +249,8 @@ export async function httpSellCreatorKey(
       await Promise.all([
          invalidateHoldingsCache(walletAddress),
          invalidateCreatorDashboardCache(creator.id),
+         // Recompute the holder leaderboard once the sell has committed (#1013).
+         onHolderBalanceChanged(creator.id),
       ]);
       sendSuccess(res, result, 200);
    } catch (error) {
