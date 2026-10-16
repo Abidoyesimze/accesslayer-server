@@ -123,6 +123,12 @@ import {
    getPlatformPaymentAssetDistribution,
 } from './key-analytics.service';
 import {
+   createKeyExportJob,
+   ExportDownloadTokenError,
+   keyExportQuerySchema,
+   resolveKeyExportDownload,
+} from './key-export.service';
+import {
    getCircuitBreakerState,
    KeyNotFoundError as CircuitBreakerKeyNotFoundError,
 } from './circuit-breaker.service';
@@ -471,6 +477,130 @@ router.get(
       }
    }
 );
+
+/**
+ * GET /api/v1/keys/:keyId/export?format=csv|json&from=&to=
+ *
+ * Creator-only. Enqueues an asynchronous full-analytics export for the key —
+ * trades, holder snapshots, revenue events/breakdown and milestone events,
+ * all scoped to the inclusive [from, to] window — and returns a signed
+ * download URL immediately (HTTP 202). The URL stays valid for
+ * KEY_EXPORT_URL_TTL_SECONDS and is served by the sibling download route
+ * below, which reports 202 while the job is still generating.
+ *
+ * Responses:
+ *   202 — { jobId, status, format, from, to, expiresAt, downloadUrl }
+ *   400 — invalid query
+ *   401 — missing/invalid token or unregistered wallet
+ *   403 — caller is not the key creator
+ *   404 — key not found
+ */
+router.get(
+   '/:keyId/export',
+   requireKeyCreator('keyId'),
+   async (req: AuthenticatedRequest, res, next) => {
+      const parsed = keyExportQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+         sendValidationError(
+            res,
+            'Invalid export query',
+            zodIssuesToDetails(parsed.error.issues)
+         );
+         return;
+      }
+
+      try {
+         const result = await createKeyExportJob({
+            keyId: String(req.params.keyId),
+            requestedBy: req.user!.wallet,
+            format: parsed.data.format,
+            from: parsed.data.from,
+            to: parsed.data.to,
+         });
+         sendSuccess(res, result, 202, 'Export queued');
+      } catch (error) {
+         if (error instanceof KeyNotFoundError) {
+            sendNotFound(res, 'Key');
+            return;
+         }
+         logger.error(
+            { error, keyId: req.params.keyId },
+            'GET /keys/:keyId/export failed'
+         );
+         next(error);
+      }
+   }
+);
+
+/**
+ * GET /api/v1/keys/exports/:jobId/download?token=
+ *
+ * Serves a generated export through its signed, expiring URL. The token is
+ * validated with HMAC + timing-safe compare before the job is even looked up.
+ *
+ * Responses:
+ *   200 — export file (CSV or JSON attachment)
+ *   202 — export still generating
+ *   403 — missing/invalid/expired token
+ *   404 — job not found
+ *   410 — link lifetime elapsed
+ *   500 — export generation failed
+ */
+router.get('/exports/:jobId/download', async (req, res, next) => {
+   const jobId = String(req.params.jobId);
+   const token = typeof req.query.token === 'string' ? req.query.token : '';
+
+   try {
+      const resolution = await resolveKeyExportDownload(jobId, token);
+
+      switch (resolution.kind) {
+         case 'ready':
+            res.setHeader('Content-Type', resolution.contentType);
+            res.setHeader(
+               'Content-Disposition',
+               `attachment; filename="${resolution.fileName}"`
+            );
+            res.setHeader('Cache-Control', 'private, no-store');
+            res.status(200).send(resolution.content);
+            return;
+         case 'pending':
+            sendSuccess(
+               res,
+               { jobId, status: resolution.status },
+               202,
+               'Export is still being generated'
+            );
+            return;
+         case 'failed':
+            sendError(
+               res,
+               500,
+               ErrorCode.INTERNAL_ERROR,
+               'Export generation failed',
+               resolution.error
+                  ? [{ field: 'error', message: resolution.error }]
+                  : undefined
+            );
+            return;
+         case 'expired':
+            sendError(res, 410, ErrorCode.GONE, 'Export download link has expired');
+            return;
+         case 'not_found':
+            sendNotFound(res, 'Export');
+            return;
+      }
+   } catch (error) {
+      if (error instanceof ExportDownloadTokenError) {
+         sendForbidden(res, error.message);
+         return;
+      }
+      logger.error(
+         { error, jobId },
+         'GET /keys/exports/:jobId/download failed'
+      );
+      next(error);
+   }
+});
 
 /**
  * GET /api/v1/keys/:keyId/analytics
