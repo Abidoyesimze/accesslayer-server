@@ -68,6 +68,9 @@ describe('referral API service', () => {
       const transaction = TransactionBuilder.fromXDR(result.transaction, result.networkPassphrase);
       const operation = transaction.operations[0] as any;
 
+      if (!('source' in transaction)) {
+         throw new Error('Expected a standard transaction, not a fee-bump transaction');
+      }
       expect(transaction.source).toBe(wallet);
       expect(transaction.signatures).toHaveLength(0);
       expect(operation.type).toBe('invokeHostFunction');
