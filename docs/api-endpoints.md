@@ -576,6 +576,48 @@ window, with alert and auto-suspension state.
 
 ---
 
+## Keys Endpoints
+
+### GET /keys/:keyId/price
+
+Returns the current bonding-curve buy and sell price for a given quantity of
+keys. Resolves `keyId` by database id **or** handle. All bigint values are
+serialised as strings. Response is cached in Redis for 10 seconds.
+
+- **Auth:** None
+- **Query Params:**
+   - `quantity` (integer, 1–1 000 000, default `1`) — number of keys to price
+
+- **Response:** `200 OK`
+
+```json
+{
+   "success": true,
+   "data": {
+      "keyId": "cm_creator_abc",
+      "quantity": 5,
+      "currentSupply": "100",
+      "buy": {
+         "unitPrice": "11250000",
+         "totalCost": "56250000"
+      },
+      "sell": {
+         "unitPrice": "10750000",
+         "totalProceeds": "53750000"
+      },
+      "priceImpactPercent": "2.27"
+   }
+}
+```
+
+> `sell` is `null` when `quantity` exceeds the current circulating supply.
+
+- **Error Responses:**
+   - `400 Bad Request` — `quantity` is missing, non-integer, ≤ 0, or > 1 000 000
+   - `404 Not Found` — key does not exist
+
+---
+
 ## Common Headers
 
 | Header             | Description                               |
