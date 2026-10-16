@@ -33,6 +33,7 @@ import {
    computeCostBasisAfterSale,
    computeRealisedPnlForSale,
 } from '../ownership/ownership.service';
+import { recordHoldingSnapshot } from '../portfolio/holding-snapshot.service';
 import {
    logSlippageRejection,
    sendSlippageExceeded,
@@ -185,6 +186,15 @@ export async function httpSellCreatorKey(
                costBasis: newCostBasis,
                realisedPnl: newRealised,
             },
+         });
+         // Holdings snapshot for the portfolio history chart (#1008), written
+         // inside the same transaction as the balance change.
+         await recordHoldingSnapshot({
+            ownerAddress: walletAddress,
+            creatorId: creator.id,
+            balance: newBalance,
+            recordedAt: new Date(),
+            db: tx,
          });
          await tx.creatorProfile.update({
             where: { id: creator.id },

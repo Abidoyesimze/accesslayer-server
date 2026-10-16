@@ -159,12 +159,19 @@ export async function processTradeEvents(
          );
       } else {
          try {
-            await recordKeySale(actor, creatorId, tradeQty, pricePerKeyXlm);
+            await recordKeySale(
+               actor,
+               creatorId,
+               tradeQty,
+               pricePerKeyXlm,
+               new Date(tradeAt)
+            );
          } catch {
             const balanceChange = -tradeQty;
             await updateOwnership(actor, creatorId, balanceChange, {
                event_type: 'sell',
                ledger_sequence: Number(ledger),
+               occurredAt: new Date(tradeAt),
             });
          }
       }
