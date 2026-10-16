@@ -19,6 +19,7 @@ import { requestContextMiddleware } from './middlewares/request-context.middlewa
 import { requestEntryLoggerMiddleware } from './middlewares/request-entry-logger.middleware';
 import { requestCompletionLoggerMiddleware } from './middlewares/request-completion-logger.middleware';
 import { bodyParseErrorMiddleware } from './middlewares/body-parse-error.middleware';
+import { routeBodySizeLimit } from './middlewares/body-size-limit.middleware';
 import { envConfig } from './config';
 import { logger } from './utils/logger.utils';
 
@@ -95,7 +96,7 @@ app.get('/', (_, res: Response) => {
 
 // Routes
 app.use('/api/v1', router);
-app.use('/staking', stakingRouter);
+app.use('/staking', routeBodySizeLimit('default'), stakingRouter);
 
 // Catches body-parse errors (including entity.too.large from the per-group
 // JSON parsers mounted inside router) — must come after the router since
