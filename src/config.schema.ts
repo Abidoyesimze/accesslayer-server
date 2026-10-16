@@ -116,6 +116,15 @@ export const envSchema = z
       // Key trade lockup
       LOCKUP_DURATION_SECONDS: z.coerce.number().int().nonnegative().default(0),
 
+      // Staking lock period options (#881): comma-separated `name=seconds`
+      // pairs. Clients pick one by name when staking; the lock expires
+      // `seconds` after the stake is created.
+      STAKING_LOCK_PERIOD_OPTIONS: z
+         .string()
+         .default(
+            'flexible=0,30d=2592000,90d=7776000,180d=15552000,365d=31536000'
+         ),
+
       // Protocol revenue distribution (#883): length of each distribution
       // cycle in days. Trading fees are aggregated into a pool per cycle and
       // claimed proportionally to stake weight (see src/modules/revenue).
