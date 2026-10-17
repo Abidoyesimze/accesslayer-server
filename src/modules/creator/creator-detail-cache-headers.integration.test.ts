@@ -45,6 +45,7 @@ const FIXTURE_PROFILE = {
    updatedAt: '2024-01-02T00:00:00.000Z',
    perks: [],
    links: [],
+   social: null,
    currentPrice: null,
    price24hAgo: null,
    priceChange24h: null,

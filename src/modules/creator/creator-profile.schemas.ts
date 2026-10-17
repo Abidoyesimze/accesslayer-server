@@ -3,6 +3,7 @@ import { withCreatorSlugEmptyStringNormalization } from './creator-slug-input.ut
 import { normalizeSocialLinkUrl } from './creator-social-link-url.utils';
 import { sanitizeBio } from './creator-bio-sanitize.utils';
 import { sanitizeDisplayName } from './creator-display-name-sanitize.utils';
+import { CreatorSocialDataSchema } from '../creators/creator-social.schemas';
 
 /**
  * Shared creator profile identifier schema for route params.
@@ -48,6 +49,11 @@ export const CreatorProfileReadResponseSchema = z.object({
    updatedAt: z.string().datetime().nullable(),
    perks: z.array(CreatorPerkSchema).optional(),
    links: z.array(z.object({ label: z.string(), url: z.string().url() })),
+   /**
+    * Social metadata synced from SocialMetadataUpdated events.
+    * null until the first event has been indexed for the creator.
+    */
+   social: CreatorSocialDataSchema.nullable(),
    /** Current key price in stroops as a string. null when no trade has occurred. */
    currentPrice: z.string().nullable(),
    /** Price 24 h ago in stroops as a string. null when no baseline exists. */

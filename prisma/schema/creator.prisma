@@ -17,6 +17,9 @@ model CreatorProfile {
   priceSnapshot CreatorPriceSnapshot?
   priceHistory  CreatorPriceHistory[]
   posts         CreatorPost[]
+
+  socialMetadata       CreatorSocialMetadata?
+  socialMetadataEvents SocialMetadataEvent[]
 }
 
 model CreatorPost {
