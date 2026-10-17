@@ -19,6 +19,7 @@ import alertsRouter from './alerts/alert.router';
 import invoiceRouter from './invoice/invoice.routes';
 import freezeRouter from './freeze/freeze.routes';
 import platformRouter from './platform/platform.routes';
+import searchRouter from './search/search.routes';
 
 import tradingRouter from './trading/multi-buy.routes';
 import sequencerRouter from './admin/sequencer.routes';
@@ -98,6 +99,8 @@ router.use('/investor', routeBodySizeLimit('default'), investorRouter);
 router.use('/followers', routeBodySizeLimit('default'), followerRouter);
 router.use('/protocol', routeBodySizeLimit('default'), protocolRouter);
 router.use('/platform', routeBodySizeLimit('default'), platformRouter);
+// Global search across keys, creators and transaction hashes (#1010).
+router.use('/search', routeBodySizeLimit('default'), searchRouter);
 router.use('/revenue', routeBodySizeLimit('default'), revenueRouter);
 router.use('/staker', routeBodySizeLimit('default'), stakerRouter);
 router.use('/staking', routeBodySizeLimit('default'), vaultRouter);
