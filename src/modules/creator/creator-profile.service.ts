@@ -196,6 +196,8 @@ export async function getCreatorProfile(
    if (website) links.push({ label: 'Website', url: website });
    if (discord) links.push({ label: 'Discord', url: discord });
 
+   const socialLinks = social?.links ?? [];
+
    const response: CreatorProfileReadResponse = {
       creatorId: profile.id,
       walletAddress,
@@ -212,9 +214,8 @@ export async function getCreatorProfile(
       createdAt: formatIsoTimestamp(profile.createdAt),
       updatedAt: formatIsoTimestamp(profile.updatedAt),
       perks: (profile.perks as any) || [],
-      links: social?.links ?? [],
+      links: socialLinks.length > 0 ? socialLinks : links,
       social,
-      links,
       tradingPaused: (profile as any).tradingPaused ?? false,
       currentMilestone: (profile as any).currentMilestone ?? 0,
       relaunchCount: (profile as any).relaunchCount ?? 0,

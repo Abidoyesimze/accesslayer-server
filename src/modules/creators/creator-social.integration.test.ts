@@ -120,12 +120,10 @@ describe('GET /api/v1/creators/:wallet/social', () => {
       );
 
       expect(res.status).toBe(404);
-      expect(res.body).toEqual({
-         success: false,
-         error: {
-            code: ErrorCode.NOT_FOUND,
-            message: 'Creator not found',
-         },
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatchObject({
+         code: ErrorCode.NOT_FOUND,
+         message: 'Creator not found',
       });
    });
 

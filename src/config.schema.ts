@@ -444,7 +444,6 @@ export const envSchema = z
          .default(60),
 
       // Creator key on-chain metadata sync (#986)
-      PINATA_GATEWAY_URL: z.string().default('https://gateway.pinata.cloud/ipfs'),
       METADATA_STALENESS_THRESHOLD_MS: z.coerce
          .number()
          .int()

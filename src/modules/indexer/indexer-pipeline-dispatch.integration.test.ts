@@ -18,10 +18,32 @@ jest.mock('./social-metadata-indexer.service', () => ({
 
 jest.mock('../ownership/ownership.service', () => ({
    updateOwnership: jest.fn(),
+   recordKeyPurchase: jest.fn(),
+   recordKeySale: jest.fn(),
 }));
 
 jest.mock('./price-snapshot.service', () => ({
    upsertPriceSnapshot: jest.fn(),
+}));
+
+jest.mock('./persist-circulating-supply.service', () => ({
+   persistCirculatingSupply: jest.fn().mockResolvedValue(0),
+}));
+
+jest.mock('../creators/creator-leaderboard-volume.service', () => ({
+   invalidateVolumeLeaderboardCache: jest.fn(),
+}));
+
+jest.mock('../referrals/referrals.service', () => ({
+   recordFirstTradeReferralReward: jest.fn(),
+}));
+
+jest.mock('../creators/creator-portfolio.service', () => ({
+   invalidateCreatorPortfolioStatsCache: jest.fn(),
+}));
+
+jest.mock('../activity/activity-feed.service', () => ({
+   invalidateActivityFeedCache: jest.fn(),
 }));
 
 jest.mock('../../utils/prisma.utils', () => ({
