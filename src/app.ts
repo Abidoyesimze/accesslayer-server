@@ -3,6 +3,8 @@ import express, { Express, Response, RequestHandler } from 'express';
 import { TspecDocsMiddleware } from 'tspec';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware'; // Add notFoundHandler import
 import router from './modules/index';
+import stakingRouter from './modules/staking/staking.routes';
+import statusRouter from './modules/status/status.routes';
 import { corsMiddleware } from './middlewares/cors.middleware';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -18,17 +20,22 @@ import { requestContextMiddleware } from './middlewares/request-context.middlewa
 import { requestEntryLoggerMiddleware } from './middlewares/request-entry-logger.middleware';
 import { requestCompletionLoggerMiddleware } from './middlewares/request-completion-logger.middleware';
 import { bodyParseErrorMiddleware } from './middlewares/body-parse-error.middleware';
+import { routeBodySizeLimit } from './middlewares/body-size-limit.middleware';
 import { envConfig } from './config';
+import { logger } from './utils/logger.utils';
 
 const app: Express = express();
 
 // Middleware setup
 app.set('trust proxy', 1);
 app.use(responseTimingMiddleware);
+// requestIdMiddleware must run before requestContextMiddleware: it assigns
+// req.traceId/req.requestId, which requestContextMiddleware then captures
+// into AsyncLocalStorage for the rest of the request's call stack.
+app.use(requestIdMiddleware);
 app.use(requestContextMiddleware);
 app.use(apiVersionMiddleware);
 app.use(schemaVersionMiddleware);
-app.use(requestIdMiddleware);
 app.use(requestEntryLoggerMiddleware);
 app.use(requestCompletionLoggerMiddleware);
 app.use(corsMiddleware());
@@ -59,7 +66,7 @@ async function setupTspecDocs() {
          ...(tspecMiddlewares as unknown as RequestHandler[])
       );
    } catch (error) {
-      console.error('Failed to setup API docs:', error);
+      logger.error({ error }, 'Failed to setup API docs');
    }
 }
 
@@ -89,7 +96,9 @@ app.get('/', (_, res: Response) => {
 });
 
 // Routes
+app.use('/status', routeBodySizeLimit('default'), statusRouter);
 app.use('/api/v1', router);
+app.use('/staking', routeBodySizeLimit('default'), stakingRouter);
 
 // Catches body-parse errors (including entity.too.large from the per-group
 // JSON parsers mounted inside router) — must come after the router since

@@ -12,9 +12,34 @@ import {
 import { checkOptionalDependencies } from './utils/startup.utils';
 import { describeDatabasePoolConfig } from './utils/db-pool-config.utils';
 import { stopOwnershipSnapshotCleanupJob } from './jobs/ownership-snapshot-cleanup.job';
+import {
+   startDetectPriceMovementsJob,
+   stopDetectPriceMovementsJob,
+} from './jobs/detect-price-movements.job';
+import {
+   startGovernanceSyncJob,
+   stopGovernanceSyncJob,
+} from './jobs/governance-sync.job';
+import {
+   startPriceHistoryCleanupJob,
+   stopPriceHistoryCleanupJob,
+} from './jobs/price-history-cleanup.job';
+import {
+   startTwapComputationJob,
+   stopTwapComputationJob,
+} from './jobs/twap-computation.job';
+import {
+   startFlashLoanViolationCleanupJob,
+   stopFlashLoanViolationCleanupJob,
+} from './jobs/flash-loan-violation-cleanup.job';
+import {
+   startStatusProbeJob,
+   stopStatusProbeJob,
+} from './jobs/status-probe.job';
 import { connectRedis, disconnectRedis } from './utils/redis.utils';
 import { broadcastServerClosing, closeAllConnections } from './utils/sse-fanout.utils';
 import { buildStartupConfigSummary } from './utils/config-summary.utils';
+import { initKeyCreationMetadataSync } from './modules/keys/key-metadata-sync.service';
 
 async function startServer() {
    try {
@@ -62,13 +87,21 @@ async function startServer() {
       // Check and warn about disabled optional dependencies (non-blocking)
       checkOptionalDependencies();
 
+      startDetectPriceMovementsJob();
+      startGovernanceSyncJob();
+      startPriceHistoryCleanupJob();
+      startTwapComputationJob();
+      startFlashLoanViolationCleanupJob();
+      startStatusProbeJob();
+      initKeyCreationMetadataSync();
+
       const server = app.listen(envConfig.PORT, () => {
          logger.info(`Server running on port ${envConfig.PORT}`);
       });
 
       return server;
    } catch (error) {
-      console.error('Failed to start server:', error);
+      logger.error({ error }, 'Failed to start server');
       await prisma.$disconnect();
       await disconnectRedis().catch(() => {});
       process.exit(1);
@@ -77,12 +110,12 @@ async function startServer() {
 
 // Handle uncaught exceptions
 process.on('uncaughtException', error => {
-   console.error('Uncaught Exception:', error);
+   logger.fatal({ error }, 'Uncaught exception');
    process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+   logger.fatal({ reason, promise }, 'Unhandled promise rejection');
    process.exit(1);
 });
 
@@ -94,6 +127,12 @@ function createGracefulShutdownHandler(server: ReturnType<typeof app.listen>) {
       closeAllConnections();
 
       stopOwnershipSnapshotCleanupJob();
+      stopDetectPriceMovementsJob();
+      stopGovernanceSyncJob();
+      stopPriceHistoryCleanupJob();
+      stopTwapComputationJob();
+      stopFlashLoanViolationCleanupJob();
+      stopStatusProbeJob();
       await prisma.$disconnect();
       logger.info('Database connection closed');
 

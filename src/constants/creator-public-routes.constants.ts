@@ -18,4 +18,6 @@ export const CREATOR_PUBLIC_ROUTE_NAMES = {
    GET_HOLDERS: 'creators:holders:get',
    /** GET /api/v1/creators/:wallet/social - Social metadata for a creator */
    GET_SOCIAL: 'creators:social:get',
+   /** GET /api/v1/creators/:creatorId/keys - Paginated keys issued by a creator */
+   GET_KEYS: 'creators:keys:get',
 } as const;

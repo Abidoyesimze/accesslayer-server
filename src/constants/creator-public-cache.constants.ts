@@ -51,6 +51,8 @@ export const CREATOR_PUBLIC_ROUTE_CACHE_PRESETS = {
    },
    [CREATOR_PUBLIC_ROUTE_NAMES.GET_SOCIAL]: {
       maxAge: socialReadSeconds,
+   [CREATOR_PUBLIC_ROUTE_NAMES.GET_KEYS]: {
+      maxAge: publicReadSeconds,
       type: 'public' as const,
       staleIfError: 86400,
    },
