@@ -25,6 +25,7 @@ import { validateCreatorParam } from '../../middlewares/creator-param.middleware
 import { requireCreatorProfileOwnership } from '../../middlewares/wallet-ownership.middleware';
 import { requireStellarSignature } from '../../middlewares/stellar-signature.middleware';
 import { buyKeyRateLimit } from '../../middlewares/wallet-rate-limit.middleware';
+import { enforceBuyCooldown } from '../../middlewares/buy-cooldown.middleware';
 import { validateBody } from '../../middlewares/validate-body.middleware';
 import { httpBuyCreatorKey, buySchema } from '../creator/buy.controller';
 import { httpSellCreatorKey, sellSchema } from '../creator/sell.controller';
@@ -59,6 +60,7 @@ creatorsRouter.post(
    platformPauseGuard(),
    requireStellarSignature(),
    buyKeyRateLimit,
+   enforceBuyCooldown(),
    validateBody(buySchema),
    httpBuyCreatorKey
 );
