@@ -42,6 +42,22 @@ Public creator discovery and stats endpoints.
 | `GET`  | `/creators`           | List creators with pagination and filtering. |
 | `GET`  | `/creators/:id/stats` | Return public stats for a specific creator.  |
 
+## Search Module
+
+Global search across creator keys, creator profiles and transaction hashes (#1010).
+
+- `GET /search` returns grouped overlay results: keys (top 3), creators (top 3) and transactions (top 1).
+- Key results match on metadata name, symbol and description.
+- Creator results match on display name and wallet-address prefix.
+- Transaction results require an exact tx-hash match.
+- The full-results endpoints use signed keyset cursors ordered by match relevance.
+
+| Method | Path               | Description                                    |
+| :----- | :----------------- | :--------------------------------------------- |
+| `GET`  | `/search?q=`       | Grouped results for the client search overlay. |
+| `GET`  | `/search/keys`     | Cursor-paginated full key search results.      |
+| `GET`  | `/search/creators` | Cursor-paginated full creator search results.  |
+
 ## Webhooks Module
 
 Manage trade webhooks for creator profiles.
