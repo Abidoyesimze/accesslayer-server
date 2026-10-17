@@ -9,8 +9,8 @@ import { upsertPriceSnapshot } from './price-snapshot.service';
 import { prisma } from '../../utils/prisma.utils';
 import { logger } from '../../utils/logger.utils';
 
-jest.mock('../../utils/prisma.utils', () => ({
-   prisma: {
+jest.mock('../../utils/prisma.utils', () => {
+   const mockPrisma: any = {
       creatorPriceSnapshot: {
          findUnique: jest.fn(),
          create: jest.fn(),
@@ -19,8 +19,15 @@ jest.mock('../../utils/prisma.utils', () => ({
       creatorPriceHistory: {
          create: jest.fn(),
       },
-   },
-}));
+      $transaction: jest.fn(async (arg: any) => {
+         if (typeof arg === 'function') {
+            return arg(mockPrisma);
+         }
+         return Promise.all(arg);
+      }),
+   };
+   return { prisma: mockPrisma };
+});
 
 jest.mock('../../utils/logger.utils', () => ({
    logger: {
@@ -40,6 +47,7 @@ const mockPrisma = prisma as unknown as {
    creatorPriceHistory: {
       create: jest.Mock;
    };
+   $transaction: jest.Mock;
 };
 
 const mockLogger = logger as unknown as {
@@ -95,22 +103,38 @@ describe('#636 price snapshot write debug log', () => {
       expect(fields.previous_price).toBeNull();
    });
 
-   it('skips snapshot and history writes when the price is unchanged', async () => {
+   it('records a trade snapshot even when its price is unchanged', async () => {
+      const tradeAt = new Date();
       mockPrisma.creatorPriceSnapshot.findUnique.mockResolvedValue({
          creatorId: CREATOR_ID,
          currentPrice: BigInt(1_000_000),
          price24hAgo: BigInt(900_000),
-         lastTradeAt: new Date('2026-01-01T00:00:00Z'),
+         lastTradeAt: new Date(tradeAt.getTime() - 60_000),
       });
 
       await upsertPriceSnapshot({
          creatorId: CREATOR_ID,
          price: BigInt(1_000_000),
-         tradeAt: new Date('2026-01-02T00:00:00Z'),
+         tradeAt,
       });
 
-      expect(mockPrisma.creatorPriceSnapshot.update).not.toHaveBeenCalled();
-      expect(mockPrisma.creatorPriceHistory.create).not.toHaveBeenCalled();
+      expect(mockPrisma.creatorPriceSnapshot.update).toHaveBeenCalledWith({
+         where: { creatorId: CREATOR_ID },
+         data: {
+            currentPrice: BigInt(1_000_000),
+            price24hAgo: BigInt(900_000),
+            lastTradeAt: tradeAt,
+         },
+      });
+      expect(mockPrisma.creatorPriceHistory.create).toHaveBeenCalledWith({
+         data: {
+            creatorId: CREATOR_ID,
+            price: BigInt(1_000_000),
+            supply: 0n,
+            direction: 'BUY',
+            recordedAt: tradeAt,
+         },
+      });
    });
 
    it('writes a new snapshot and history record when the price changes', async () => {
@@ -136,6 +160,8 @@ describe('#636 price snapshot write debug log', () => {
          data: {
             creatorId: CREATOR_ID,
             price: BigInt(1_100_000),
+            supply: 0n,
+            direction: 'BUY',
             recordedAt: tradeAt,
          },
       });

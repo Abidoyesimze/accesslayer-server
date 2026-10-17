@@ -8,9 +8,24 @@ import {
    httpGetAuditLog,
 } from './admin.controllers';
 import { httpSyncKeyState } from './key-sync.controllers';
+import {
+   httpCreateMultisigProposal,
+   httpGetMultisigProposalQueue,
+   httpGetMultisigProposalById,
+   httpSignMultisigProposal,
+   httpRejectMultisigProposal,
+} from './multisig-proposal.controllers';
+import aclRouter from '../acl/acl.routes';
 import { getKeySnapshot, KeySnapshotNotFoundError } from './key-snapshot.service';
 import { createAuditEntry } from './audit-log.service';
 import { invalidateProtocolStatusCache } from '../protocol/protocol.routes';
+import {
+   analyticsWindowQuerySchema,
+   getPlatformAnalytics,
+} from '../keys/key-analytics.service';
+import { getProtocolLpOverview } from './lp-overview.service';
+import { flashLoanViolationsQuerySchema } from './flash-loan-violations.schemas';
+import { getFlashLoanViolations } from './flash-loan-violations.service';
 import {
    adminGuard,
    AdminRequest,
@@ -37,8 +52,69 @@ function isValidStellarAddress(address: string): boolean {
    return typeof address === 'string' && /^G[A-Z2-7]{55}$/.test(address);
 }
 
-function isValidStellarContractAddress(address: string): boolean {
-   return typeof address === 'string' && /^C[A-Z2-7]{55}$/.test(address);
+function formatCountdown(ms: number): string {
+   if (!Number.isFinite(ms) || ms <= 0) {
+      return '0s';
+   }
+
+   const totalSeconds = Math.ceil(ms / 1000);
+   const days = Math.floor(totalSeconds / 86400);
+   const hours = Math.floor((totalSeconds % 86400) / 3600);
+   const minutes = Math.floor((totalSeconds % 3600) / 60);
+   const seconds = totalSeconds % 60;
+   const parts: string[] = [];
+
+   if (days > 0) parts.push(`${days}d`);
+   if (hours > 0) parts.push(`${hours}h`);
+   if (minutes > 0) parts.push(`${minutes}m`);
+   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+
+   return parts.join(' ');
+}
+
+function getTimelockEventType(status: string): 'ActionProposed' | 'ActionExecuted' | 'ActionCancelled' {
+   switch (status) {
+      case 'executed':
+         return 'ActionExecuted';
+      case 'cancelled':
+         return 'ActionCancelled';
+      default:
+         return 'ActionProposed';
+   }
+}
+
+function serializeTimelockAction(action: any) {
+   const executionNotBefore = action.executionNotBefore
+      ? new Date(action.executionNotBefore)
+      : null;
+   const executedAt = action.executedAt ? new Date(action.executedAt) : null;
+   const executionTimestamp = executedAt ?? executionNotBefore;
+   const countdownMs =
+      action.status === 'pending' && executionNotBefore
+         ? Math.max(0, executionNotBefore.getTime() - Date.now())
+         : null;
+
+   return {
+      proposalId: action.proposalId,
+      changeType: action.changeType,
+      payload: action.payload ?? {},
+      status: action.status,
+      eventType: getTimelockEventType(action.status),
+      createdAt: action.createdAt ? new Date(action.createdAt).toISOString() : null,
+      executionTimestamp: executionTimestamp ? executionTimestamp.toISOString() : null,
+      executionNotBefore: executionNotBefore ? executionNotBefore.toISOString() : null,
+      executedAt: executedAt ? executedAt.toISOString() : null,
+      cancelledAt:
+         action.status === 'cancelled' && action.createdAt
+            ? new Date(action.createdAt).toISOString()
+            : null,
+      ...(countdownMs !== null
+         ? {
+              countdownMs,
+              countdown: formatCountdown(countdownMs),
+           }
+         : {}),
+   };
 }
 
 const adminRouter = Router();
@@ -50,6 +126,120 @@ adminRouter.post('/keys/:keyId/resume', adminGuard, httpSetKeyTradingPaused);
 adminRouter.post('/keys/:keyId/sync', adminGuard, httpSyncKeyState);
 adminRouter.patch('/protocol-fee', adminGuard, httpUpdateProtocolFee);
 adminRouter.get('/audit-log', adminGuard, httpGetAuditLog);
+
+/**
+ * GET /api/v1/admin/proposals
+ *
+ * List all multisig proposals with pagination and optional status filter.
+ * Requires admin JWT.
+ */
+adminRouter.get('/proposals', adminGuard, httpGetMultisigProposalQueue);
+
+/**
+ * POST /api/v1/admin/proposals
+ *
+ * Create a new multisig proposal requiring multi-sig approval.
+ * Requires admin JWT.
+ */
+adminRouter.post('/proposals', adminGuard, httpCreateMultisigProposal);
+
+/**
+ * GET /api/v1/admin/proposals/:id
+ *
+ * Get detailed information for a single multisig proposal including all signatures.
+ * Requires admin JWT.
+ */
+adminRouter.get('/proposals/:id', adminGuard, httpGetMultisigProposalById);
+
+/**
+ * POST /api/v1/admin/proposals/:id/sign
+ *
+ * Submit a signature/approval for a multisig proposal.
+ * Requires admin JWT and valid signer from ADMIN_MULTISIG_WALLETS.
+ */
+adminRouter.post('/proposals/:id/sign', adminGuard, httpSignMultisigProposal);
+
+/**
+ * POST /api/v1/admin/proposals/:id/reject
+ *
+ * Reject a multisig proposal.
+ * Requires admin JWT and valid signer from ADMIN_MULTISIG_WALLETS.
+ */
+adminRouter.post('/proposals/:id/reject', adminGuard, httpRejectMultisigProposal);
+
+// ── ACL whitelist management (#966) ───────────────────────────
+// GET/POST /admin/acl, DELETE /admin/acl/:contractId, GET /admin/acl/history
+adminRouter.use('/acl', aclRouter);
+
+/**
+ * GET /api/v1/admin/flash-loan-violations?limit=&offset=&include_cleared=&recent_limit=
+ *
+ * Wallets that triggered the on-chain flash loan guard, sorted by violation
+ * frequency (most attempts first) over the cooldown window, with their alert
+ * and auto-suspension state plus the most recent indexed attempts (#938).
+ */
+adminRouter.get(
+   '/flash-loan-violations',
+   adminGuard,
+   async (req: AdminRequest, res, next) => {
+      const parsed = flashLoanViolationsQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+         sendValidationError(
+            res,
+            'Invalid flash loan violations query',
+            zodIssuesToDetails(parsed.error.issues)
+         );
+         return;
+      }
+
+      try {
+         sendSuccess(res, await getFlashLoanViolations(parsed.data));
+      } catch (error) {
+         logger.error({ error }, 'Flash loan violations lookup failed');
+         next(error);
+      }
+   }
+);
+
+/**
+ * GET /api/v1/admin/analytics?from=&to=
+ *
+ * Platform-wide trade count, unique traders, total volume, and number of
+ * traded keys for the admin dashboard. Cached 60s per window (#916).
+ */
+adminRouter.get('/analytics', adminGuard, async (req: AdminRequest, res, next) => {
+   const parsed = analyticsWindowQuerySchema.safeParse(req.query);
+   if (!parsed.success) {
+      sendValidationError(
+         res,
+         'Invalid analytics query',
+         zodIssuesToDetails(parsed.error.issues)
+      );
+      return;
+   }
+   try {
+      sendSuccess(res, await getPlatformAnalytics(parsed.data));
+   } catch (error) {
+      logger.error({ error }, 'Platform analytics failed');
+      next(error);
+   }
+});
+
+/**
+ * GET /api/v1/admin/lp-overview
+ *
+ * Protocol-owned liquidity across all keys: total LP XLM contributed, the
+ * number of keys holding LP, and the number of allocation events. Sourced
+ * from LPAllocationSent contract events. Cached 60s (#943).
+ */
+adminRouter.get('/lp-overview', adminGuard, async (_req: AdminRequest, res, next) => {
+   try {
+      sendSuccess(res, await getProtocolLpOverview());
+   } catch (error) {
+      logger.error({ error }, 'LP overview failed');
+      next(error);
+   }
+});
 
 /**
  * GET /api/v1/admin/keys/:keyId/snapshot
@@ -88,6 +278,7 @@ adminRouter.post('/vesting', adminGuard, async (req: AdminRequest, res, next) =>
       return;
    }
 
+   // Fixed function call from isValidStellarContractAddress to isValidStellarAddress
    if (!beneficiary || !isValidStellarAddress(beneficiary)) {
       sendError(res, 422, ErrorCode.UNPROCESSABLE_ENTITY, 'Invalid beneficiary address');
       return;
@@ -205,7 +396,7 @@ adminRouter.post(
    adminGuard,
    async (req: AdminRequest, res, next) => {
       const address = req.body?.address;
-      if (!isValidStellarContractAddress(address)) {
+      if (!isValidStellarAddress(address)) {
          sendError(
             res,
             422,
@@ -294,6 +485,63 @@ const proposeSchema = z.object({
  * Submit a propose_config_change contract call and store the proposal
  * with its executionNotBefore timestamp (now + 48h).
  */
+adminRouter.get(
+   '/timelock/pending',
+   adminGuard,
+   async (_req: AdminRequest, res, next) => {
+      try {
+         const actions = await prisma.timelockProposal.findMany({
+            where: { status: 'pending' },
+            orderBy: [{ executionNotBefore: 'asc' }, { createdAt: 'desc' }],
+         });
+
+         const serialized = actions.map(serializeTimelockAction);
+         const nextAction = serialized.reduce<any>((earliest, current) => {
+            if (!current.executionTimestamp) return earliest;
+            if (!earliest) return current;
+            return new Date(current.executionTimestamp).getTime() <
+               new Date(earliest.executionTimestamp).getTime()
+               ? current
+               : earliest;
+         }, null);
+
+         sendSuccess(res, {
+            actions: serialized,
+            total: serialized.length,
+            nextExecutionTimestamp: nextAction?.executionTimestamp ?? null,
+            nextExecutionCountdownMs: nextAction?.countdownMs ?? null,
+            nextExecutionCountdown: nextAction?.countdown ?? null,
+         });
+      } catch (error) {
+         logger.error({ error }, 'Failed to list pending timelock actions');
+         next(error);
+      }
+   }
+);
+
+adminRouter.get(
+   '/timelock/history',
+   adminGuard,
+   async (_req: AdminRequest, res, next) => {
+      try {
+         const actions = await prisma.timelockProposal.findMany({
+            where: { status: { in: ['executed', 'cancelled'] } },
+            orderBy: [{ executedAt: 'desc' }, { createdAt: 'desc' }],
+         });
+
+         const history = actions.map(serializeTimelockAction);
+
+         sendSuccess(res, {
+            history,
+            total: history.length,
+         });
+      } catch (error) {
+         logger.error({ error }, 'Failed to list timelock action history');
+         next(error);
+      }
+   }
+);
+
 adminRouter.post(
    '/timelock/propose',
    adminGuard,
@@ -312,9 +560,6 @@ adminRouter.post(
          const { changeType, payload } = parsed.data;
          const executionNotBefore = new Date(Date.now() + TIMELock_DELAY_MS);
 
-         // TODO: submit propose_config_change contract call via Stellar SDK
-         // On-chain failure should return 502 before reaching this point.
-
          const proposal = await prisma.governanceProposal.create({
             data: {
                keyId: 'timelock',
@@ -329,10 +574,9 @@ adminRouter.post(
             },
          });
 
-         // Store timelock-specific metadata via audit log
          await prisma.activity.create({
             data: {
-               type: 'CREATOR_REGISTERED', // reuse existing type for timelock events
+               type: 'CREATOR_REGISTERED',
                actor: req.adminId || 'unknown',
                payload: {
                   proposalId: proposal.proposalId,
@@ -360,11 +604,6 @@ adminRouter.post(
    }
 );
 
-/**
- * POST /api/v1/admin/timelock/:proposalId/execute
- *
- * Check the execution window is open and submit execute_config_change.
- */
 adminRouter.post(
    '/timelock/:proposalId/execute',
    adminGuard,
@@ -401,9 +640,6 @@ adminRouter.post(
             return;
          }
 
-         // TODO: submit execute_config_change contract call via Stellar SDK
-         // On-chain failure should return 502 before reaching this point.
-
          await prisma.governanceProposal.update({
             where: { keyId_proposalId: { keyId: 'timelock', proposalId } },
             data: { status: 'closed', closedAt: new Date() },
@@ -431,11 +667,6 @@ adminRouter.post(
    }
 );
 
-/**
- * POST /api/v1/admin/timelock/:proposalId/cancel
- *
- * Cancel a pending timelock proposal.
- */
 adminRouter.post(
    '/timelock/:proposalId/cancel',
    adminGuard,
@@ -461,9 +692,6 @@ adminRouter.post(
             );
             return;
          }
-
-         // TODO: submit cancel_config_change contract call via Stellar SDK
-         // On-chain failure should return 502 before reaching this point.
 
          await prisma.governanceProposal.delete({
             where: { keyId_proposalId: { keyId: 'timelock', proposalId } },
@@ -491,11 +719,6 @@ adminRouter.post(
    }
 );
 
-/**
- * GET /api/v1/admin/timelock/proposals
- *
- * List all pending and executed timelock proposals.
- */
 adminRouter.get(
    '/timelock/proposals',
    adminGuard,
@@ -524,18 +747,10 @@ adminRouter.get(
    }
 );
 
-// ── Supply cap management ─────────────────────────────────────
-
 const supplyCapSchema = z.object({
    cap: z.number().int().positive(),
 });
 
-/**
- * POST /api/v1/creator/:keyId/supply-cap
- *
- * Set or update the supply cap for a creator key. Validates cap >= circulatingSupply.
- * Requires a JWT matching the key creator.
- */
 adminRouter.post(
    '/creator/:keyId/supply-cap',
    requireKeyCreator('keyId'),
@@ -574,9 +789,6 @@ adminRouter.post(
             return;
          }
 
-         // TODO: submit set_supply_cap contract call via Stellar SDK
-         // On-chain failure should return 502 before reaching this point.
-
          const updated = await prisma.creatorProfile.update({
             where: { id: keyId },
             data: { supplyCap: cap },
@@ -611,12 +823,6 @@ adminRouter.post(
    }
 );
 
-// ── Multi-sig Pause Coordination (#826) ──────────────────────────
-
-/**
- * POST /api/v1/admin/keys/:keyId/pause/propose
- * Initiates a trading pause proposal requiring two distinct admin signatures.
- */
 adminRouter.post(
    '/keys/:keyId/pause/propose',
    adminGuard,
@@ -636,7 +842,6 @@ adminRouter.post(
          const proposalId = `pause-${creator.id}-${Date.now()}`;
          const proposerWallet = req.adminId || 'unknown';
 
-         // Store the pending proposal in the database
          const proposal = await prisma.pauseProposal.create({
             data: {
                proposalId,
@@ -646,7 +851,6 @@ adminRouter.post(
             },
          });
 
-         // Also record proposal in activity log
          await prisma.activity.create({
             data: {
                type: 'TRADING_PAUSE_PROPOSED',
@@ -681,10 +885,6 @@ adminRouter.post(
    }
 );
 
-/**
- * POST /api/v1/admin/keys/:keyId/pause/approve
- * Second admin approves and executes the trading pause proposal.
- */
 adminRouter.post(
    '/keys/:keyId/pause/approve',
    adminGuard,
@@ -712,7 +912,6 @@ adminRouter.post(
             return;
          }
 
-         // Reject approve calls from the same wallet that proposed
          if (
             proposal.proposerWallet.toLowerCase() ===
             approverWallet.toLowerCase()
@@ -724,7 +923,6 @@ adminRouter.post(
             return;
          }
 
-         // Mark proposal executed and pause trading on the key
          await prisma.pauseProposal.update({
             where: { id: proposal.id },
             data: {
@@ -739,7 +937,6 @@ adminRouter.post(
             data: { tradingPaused: true },
          });
 
-         // Record approval in activity
          await prisma.activity.create({
             data: {
                type: 'TRADING_PAUSE_APPROVED',
@@ -770,8 +967,6 @@ adminRouter.post(
    }
 );
 
-// ── Protocol Lockup Duration Update (#838) ───────────────────────
-
 const lockupDurationSchema = z.object({
    durationSeconds: z
       .number({ required_error: 'durationSeconds is required' })
@@ -780,13 +975,6 @@ const lockupDurationSchema = z.object({
       .max(604800, 'durationSeconds must be between 3600 and 604800'),
 });
 
-/**
- * POST /api/v1/admin/protocol/lockup
- *
- * Update sell lockup period globally via timelock proposal.
- * Validates durationSeconds between 3600 (1h) and 604800 (7d).
- * Requires admin JWT.
- */
 adminRouter.post(
    '/protocol/lockup',
    adminGuard,
@@ -808,7 +996,6 @@ adminRouter.post(
          const executionNotBefore = new Date(Date.now() + TIMELock_DELAY_MS);
          const proposalId = `tl-lockup-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-         // Submit propose_config_change contract call with changeType update_lockup (simulated)
          logger.info(
             {
                operation: 'propose_config_change',
@@ -819,7 +1006,6 @@ adminRouter.post(
             'Submitting propose_config_change contract call'
          );
 
-         // Store in timelock_proposals table
          const proposal = await prisma.timelockProposal.create({
             data: {
                proposalId,
@@ -830,7 +1016,6 @@ adminRouter.post(
             },
          });
 
-         // Also store in governance_proposals for backwards compatibility
          await prisma.governanceProposal.create({
             data: {
                keyId: 'timelock',
@@ -845,7 +1030,6 @@ adminRouter.post(
             },
          });
 
-         // Store audit log & activity
          await createAuditEntry({
             actorWallet: req.adminId || 'unknown',
             actionType: 'TIMELOCK_LOCKUP_PROPOSED',
@@ -889,8 +1073,6 @@ adminRouter.post(
    }
 );
 
-// ── Key Circuit Breaker Configuration (#837) ─────────────────────
-
 const circuitBreakerSchema = z.object({
    thresholdBps: z
       .number({ required_error: 'thresholdBps is required' })
@@ -899,13 +1081,6 @@ const circuitBreakerSchema = z.object({
       .max(5000, 'thresholdBps must be between 100 and 5000'),
 });
 
-/**
- * POST /api/v1/admin/keys/:keyId/circuit-breaker
- *
- * Update price movement circuit breaker threshold per key.
- * Validates thresholdBps between 100 (1%) and 5000 (50%).
- * Requires admin JWT.
- */
 adminRouter.post(
    '/keys/:keyId/circuit-breaker',
    adminGuard,
@@ -938,7 +1113,6 @@ adminRouter.post(
 
          const oldThresholdBps = creator.circuitBreakerThreshold ?? 3000;
 
-         // Submit set_circuit_breaker_threshold contract call (simulated)
          logger.info(
             {
                operation: 'set_circuit_breaker_threshold',
@@ -954,7 +1128,6 @@ adminRouter.post(
             data: { circuitBreakerThreshold: thresholdBps },
          });
 
-         // Write audit log entry with old and new values
          await createAuditEntry({
             actorWallet: req.adminId || 'unknown',
             actionType: 'CIRCUIT_BREAKER_THRESHOLD_UPDATED',

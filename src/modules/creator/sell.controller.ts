@@ -23,12 +23,18 @@ import {
    assertPositionNotFrozen,
    PositionFrozenError,
 } from '../keys/key-freeze.service';
+import {
+   assertWalletNotSuspended,
+   WalletSuspendedError,
+} from '../indexer/flash-loan-guard-indexer.service';
 import { getKeyFees, KeyNotFoundError } from '../keys/key-fees.service';
 import { computeSellPayout, getSellUnitPrice } from '../../utils/pricing.utils';
 import {
    computeCostBasisAfterSale,
    computeRealisedPnlForSale,
 } from '../ownership/ownership.service';
+import { onHolderBalanceChanged } from '../keys/key-holder-leaderboard.service';
+import { recordHoldingSnapshot } from '../portfolio/holding-snapshot.service';
 import {
    logSlippageRejection,
    sendSlippageExceeded,
@@ -80,6 +86,18 @@ export async function httpSellCreatorKey(
       await assertPositionNotFrozen(walletAddress, keyId);
    } catch (error) {
       if (error instanceof PositionFrozenError) {
+         sendForbidden(res, error.message);
+         return;
+      }
+      throw error;
+   }
+
+   // Flash loan guard (#938): wallets auto-suspended after repeated guard
+   // violations cannot trade (403).
+   try {
+      await assertWalletNotSuspended(walletAddress);
+   } catch (error) {
+      if (error instanceof WalletSuspendedError) {
          sendForbidden(res, error.message);
          return;
       }
@@ -170,6 +188,15 @@ export async function httpSellCreatorKey(
                realisedPnl: newRealised,
             },
          });
+         // Holdings snapshot for the portfolio history chart (#1008), written
+         // inside the same transaction as the balance change.
+         await recordHoldingSnapshot({
+            ownerAddress: walletAddress,
+            creatorId: creator.id,
+            balance: newBalance,
+            recordedAt: new Date(),
+            db: tx,
+         });
          await tx.creatorProfile.update({
             where: { id: creator.id },
             data: { circulatingSupply: newSupply },
@@ -222,6 +249,8 @@ export async function httpSellCreatorKey(
       await Promise.all([
          invalidateHoldingsCache(walletAddress),
          invalidateCreatorDashboardCache(creator.id),
+         // Recompute the holder leaderboard once the sell has committed (#1013).
+         onHolderBalanceChanged(creator.id),
       ]);
       sendSuccess(res, result, 200);
    } catch (error) {
