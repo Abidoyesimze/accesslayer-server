@@ -1,4 +1,3 @@
-
 // Issue #572: structured log after each alert check run.
 import { evaluatePriceAlertsForMovement } from '../alert.service';
 import { prisma } from '../../../utils/prisma.utils';
@@ -15,7 +14,10 @@ describe('Issue #572: alert check structured log', () => {
    it('debug log with all 5 fields when no alerts', async () => {
       mp.priceAlert.findMany.mockResolvedValueOnce([]);
       await evaluatePriceAlertsForMovement({ creatorId: 'c1', previousPrice: '4', currentPrice: '6', ledger_sequence: 42 });
-      expect(logger.debug).toHaveBeenCalledWith(expect.objectContaining({ creator_id: 'c1', alerts_evaluated: 0, alerts_triggered: 0, new_price: 6, checked_at: expect.any(String) }), 'Price alert check run');
+      expect(logger.debug).toHaveBeenCalledWith(
+         expect.objectContaining({ creator_id: 'c1', alerts_evaluated: 0, alerts_triggered: 0, new_price: 6, checked_at: expect.any(String) }),
+         'Price alert check run'
+      );
       expect(logger.info).not.toHaveBeenCalled();
    });
 
@@ -33,7 +35,10 @@ describe('Issue #572: alert check structured log', () => {
    });
 
    it('counts multiple triggers in one run', async () => {
-      mp.priceAlert.findMany.mockResolvedValueOnce([{ id: 'a1', creatorId: 'c1', walletAddress: 'GAAA', targetPrice: 5, direction: 'above', isActive: true, triggeredAt: null, callbackUrl: null }, { id: 'a2', creatorId: 'c1', walletAddress: 'GBBB', targetPrice: 4.5, direction: 'above', isActive: true, triggeredAt: null, callbackUrl: null }]);
+      mp.priceAlert.findMany.mockResolvedValueOnce([
+         { id: 'a1', creatorId: 'c1', walletAddress: 'GAAA', targetPrice: 5, direction: 'above', isActive: true, triggeredAt: null, callbackUrl: null },
+         { id: 'a2', creatorId: 'c1', walletAddress: 'GBBB', targetPrice: 4.5, direction: 'above', isActive: true, triggeredAt: null, callbackUrl: null },
+      ]);
       await evaluatePriceAlertsForMovement({ creatorId: 'c1', previousPrice: '4', currentPrice: '6' });
       expect(logger.info).toHaveBeenCalledWith(expect.objectContaining({ alerts_evaluated: 2, alerts_triggered: 2 }), 'Price alert check run');
    });
