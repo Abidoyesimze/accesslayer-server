@@ -487,13 +487,19 @@ router.get(
  */
 router.get('/:keyId/analytics', async (req, res, next) => {
    try {
-      sendSuccess(res, await getKeyPaymentAssetAnalytics(String(req.params.keyId)));
+      sendSuccess(
+         res,
+         await getKeyPaymentAssetAnalytics(String(req.params.keyId))
+      );
    } catch (error) {
       if (error instanceof KeyNotFoundError) {
          sendNotFound(res, 'Key');
          return;
       }
-      logger.error({ error, keyId: req.params.keyId }, 'GET /keys/:keyId/analytics failed');
+      logger.error(
+         { error, keyId: req.params.keyId },
+         'GET /keys/:keyId/analytics failed'
+      );
       next(error);
    }
 });
@@ -622,7 +628,6 @@ router.get('/:keyId/metadata', async (req, res, next) => {
    }
 });
 
-
 /**
  * GET /api/v1/keys/:keyId/price/twap?window=1h|4h|24h
  *
@@ -703,7 +708,9 @@ router.get('/:keyId/curve-config', async (req, res, next) => {
 
 const twapWindowQuerySchema = z.object({
    window: z.enum(['1h', '24h', '7d'], {
-      errorMap: () => ({ message: 'Invalid window param. Must be 1h, 24h, or 7d' }),
+      errorMap: () => ({
+         message: 'Invalid window param. Must be 1h, 24h, or 7d',
+      }),
    }),
 });
 
@@ -779,7 +786,7 @@ router.get('/:keyId/fee', async (req, res, next) => {
    try {
       // We dynamically load the service here to avoid massive circular imports if any
       const { getDynamicFeeRate } = await import('./key-dynamic-fee.service');
-      
+
       // If the request is authenticated, we use the user's wallet for the volume discount
       // In a real implementation we would extract the wallet from the JWT middleware (req.user),
       // but this endpoint is public. We optionally accept a wallet address to preview discount.
@@ -902,7 +909,10 @@ router.get(
             return sendSuccess(res, cached);
          }
 
-         const history = await getKeyVestingHistory(keyId, Number.isFinite(limit) ? limit : 20);
+         const history = await getKeyVestingHistory(
+            keyId,
+            Number.isFinite(limit) ? limit : 20
+         );
          await cacheSetJson(cacheKey, history, 60);
          sendSuccess(res, history);
       } catch (error) {
@@ -1354,12 +1364,23 @@ router.get('/:keyId/cooldown', async (req, res, next) => {
  * - With `interval`: a downsampled, chart-friendly series (legacy shape).
  */
 
+const holdingCapacityQuerySchema = walletQuerySchema.extend({
+   quantity: z.coerce
+      .number()
+      .int('quantity must be an integer')
+      .min(0, 'quantity must be non-negative')
+      .max(1_000_000, 'quantity must be at most 1,000,000')
+      .default(0),
+});
+
 /**
- * GET /api/v1/keys/:keyId/holding-capacity?wallet=
- * Wallet holding, holder cap, and remaining purchase capacity on a key.
+ * GET /api/v1/keys/:keyId/holding-capacity?wallet=&quantity=
+ * Wallet holding, holder cap, remaining purchase capacity, and whether the
+ * requested quantity fits within the cap. Read-only pre-check for buy
+ * transactions (#913). No auth required.
  */
 router.get('/:keyId/holding-capacity', async (req, res, next) => {
-   const parsed = walletQuerySchema.safeParse(req.query);
+   const parsed = holdingCapacityQuerySchema.safeParse(req.query);
    if (!parsed.success) {
       sendValidationError(
          res,
@@ -1373,7 +1394,8 @@ router.get('/:keyId/holding-capacity', async (req, res, next) => {
          res,
          await getKeyHoldingCapacity(
             String(req.params.keyId),
-            parsed.data.wallet
+            parsed.data.wallet,
+            parsed.data.quantity
          )
       );
    } catch (error) {
@@ -1452,7 +1474,7 @@ router.get('/:keyId/price-history', async (req, res, next) => {
    } catch (error) {
       next(error);
    }
- });
+});
 
 // ── GET /:keyId/simulate ──────────────────────────────────────
 
@@ -1517,12 +1539,7 @@ router.get('/:keyId/simulate', async (req, res, next) => {
          error instanceof QuantityExceedsLimitError ||
          error instanceof BatchSizeExceedsLimitError
       ) {
-         sendError(
-            res,
-            422,
-            ErrorCode.UNPROCESSABLE_ENTITY,
-            error.message
-         );
+         sendError(res, 422, ErrorCode.UNPROCESSABLE_ENTITY, error.message);
          return;
       }
       next(error);
