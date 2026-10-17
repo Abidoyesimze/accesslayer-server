@@ -70,6 +70,18 @@ Wallet activity and trade history endpoints.
 | :----- | :--------------------------- | :------------------------------------------------------------ |
 | `GET`  | `/wallets/:address/activity` | Return paginated trade history (buys and sells) for a wallet. |
 
+## Referrals Module
+
+Wallet-scoped referral reward earnings indexed from `ReferralRewardDistributed`
+events.
+
+- Referral earnings reference: [`docs/referral-earnings.md`](./referral-earnings.md).
+
+| Method | Path                          | Description                                                        |
+| :----- | :---------------------------- | :----------------------------------------------------------------- |
+| `GET`  | `/referrals/:wallet/earnings` | Paginated referral earnings history with an optional date range.   |
+| `GET`  | `/referrals/:wallet/summary`  | Total earnings, tier 1/2/3 breakdown, and referred wallet count.   |
+
 ## Ownership Module
 
 Ownership lookup endpoints.
