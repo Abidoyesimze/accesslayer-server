@@ -9,6 +9,7 @@ import {
 import {
    castGovernanceVote,
    createGovernanceProposal,
+   getGovernanceVotingWeight,
    DuplicateGovernanceVoteError,
    GovernanceKeyNotFoundError,
    GovernanceProposalNotFoundError,
@@ -85,6 +86,34 @@ router.get('/proposals', async (req, res, next) => {
       const result = await listGovernanceProposals(parsed.data);
       sendSuccess(res, result);
    } catch (error) {
+      next(error);
+   }
+});
+
+/**
+ * GET /governance/proposals/:id/weight?wallet=...
+ * Return the caller-selected wallet's frozen voting weight for a proposal.
+ */
+router.get('/proposals/:id/weight', async (req, res, next) => {
+   const wallet = req.query.wallet;
+   if (typeof wallet !== 'string' || wallet.trim().length === 0) {
+      sendValidationError(res, 'Invalid query parameters', [
+         { field: 'wallet', message: 'wallet is required' },
+      ]);
+      return;
+   }
+
+   try {
+      const result = await getGovernanceVotingWeight(
+         String(req.params.id),
+         wallet.trim()
+      );
+      sendSuccess(res, result);
+   } catch (error) {
+      if (error instanceof GovernanceProposalNotFoundError) {
+         sendNotFound(res, 'Proposal');
+         return;
+      }
       next(error);
    }
 });

@@ -483,6 +483,42 @@ async function findProposal(proposalIdParam: string) {
    });
 }
 
+/** Read one wallet's immutable voting weight from a proposal snapshot. */
+export async function getGovernanceVotingWeight(
+   proposalIdParam: string,
+   wallet: string
+): Promise<{
+   keyId: string;
+   proposalId: string;
+   wallet: string;
+   weight: string;
+   snapshotLedger: number;
+   snapshotTotalWeight: string;
+}> {
+   const proposal = await findProposal(proposalIdParam);
+   if (!proposal) throw new GovernanceProposalNotFoundError(proposalIdParam);
+
+   const snapshot = await prisma.governanceVotingSnapshot.findUnique({
+      where: {
+         keyId_proposalId_wallet: {
+            keyId: proposal.keyId,
+            proposalId: proposal.proposalId,
+            wallet,
+         },
+      },
+      select: { weight: true },
+   });
+
+   return {
+      keyId: proposal.keyId,
+      proposalId: proposal.proposalId,
+      wallet,
+      weight: toIntegerString(snapshot?.weight),
+      snapshotLedger: proposal.snapshotLedger,
+      snapshotTotalWeight: proposal.snapshotTotalWeight ?? '0',
+   };
+}
+
 /**
  * Cast a governance vote weighted by the wallet's snapshot staked balance.
  *
