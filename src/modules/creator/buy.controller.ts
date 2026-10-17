@@ -16,6 +16,7 @@ import {
 import { getKeyFees } from '../keys/key-fees.service';
 import { prisma } from '../../utils/prisma.utils';
 import { getBuyUnitPrice } from '../../utils/pricing.utils';
+import { setBuyCooldownForWallet } from '../keys/key-cooldown.service';
 import {
    logSlippageRejection,
    sendSlippageExceeded,
@@ -132,5 +133,6 @@ export async function httpBuyCreatorKey(
       creatorId: keyId,
       quantity: body.quantity,
    });
+   await setBuyCooldownForWallet(keyId, walletAddress);
    sendSuccess(res, result, 200);
 }

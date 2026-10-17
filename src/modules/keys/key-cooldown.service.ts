@@ -2,11 +2,18 @@
 // Buy cooldown status for a wallet on a key (#874, #968).
 
 import { prisma } from '../../utils/prisma.utils';
-import { cacheGetJson, cacheSetJson, cacheInvalidate } from '../../utils/redis.utils';
+import {
+   cacheGetJson,
+   cacheSetJson,
+   cacheInvalidate,
+   getRedis,
+} from '../../utils/redis.utils';
+import { logger } from '../../utils/logger.utils';
 import { KeyNotFoundError } from './key-fees.service';
 
 /** Approximate seconds per Stellar ledger. */
 const SECONDS_PER_LEDGER = 5;
+const BUY_COOLDOWN_REDIS_KEY_PREFIX = 'buy-cooldown';
 
 export interface KeyCooldownStatus {
    key_id: string;
@@ -23,6 +30,167 @@ export interface KeyCooldownStatus {
 
 export const cooldownCacheKey = (keyId: string, wallet: string): string =>
    `keys:cooldown:${keyId}:${wallet.toLowerCase()}`;
+
+/** Redis key holding the absolute buy-cooldown expiry for a wallet on a key. */
+export function buildBuyCooldownRedisKey(
+   keyId: string,
+   walletAddress: string
+): string {
+   return `${BUY_COOLDOWN_REDIS_KEY_PREFIX}:${walletAddress.toLowerCase()}:${keyId.toLowerCase()}`;
+}
+
+/**
+ * Resolves the buy cooldown duration for a key, in seconds. The duration is
+ * configured per key through contract metadata, mirrored off-chain on
+ * `CreatorProfile.cooldownLedgers` (in ledgers). Zero (or an unknown key)
+ * disables the cooldown.
+ */
+export async function getCooldownDurationSeconds(
+   keyId: string
+): Promise<number> {
+   const creator = await prisma.creatorProfile.findFirst({
+      where: { OR: [{ id: keyId }, { handle: keyId }] },
+      select: { id: true, cooldownLedgers: true },
+   });
+   if (!creator) {
+      throw new KeyNotFoundError(keyId);
+   }
+   return Math.max(0, creator.cooldownLedgers * SECONDS_PER_LEDGER);
+}
+
+/**
+ * Records a successful buy by storing the cooldown expiry in Redis keyed by
+ * wallet address and key ID. The TTL matches the remaining cooldown so the key
+ * self-expires exactly when the cooldown ends. Returns the ISO expiry, or
+ * `null` when no cooldown is configured or the write failed.
+ */
+export async function setBuyCooldownForWallet(
+   keyId: string,
+   walletAddress: string
+): Promise<string | null> {
+   try {
+      const durationSeconds = await getCooldownDurationSeconds(keyId);
+      if (durationSeconds <= 0) {
+         return null;
+      }
+
+      const expiresAt = new Date(
+         Date.now() + durationSeconds * 1000
+      ).toISOString();
+
+      const redis = getRedis();
+      if (!redis) {
+         return expiresAt;
+      }
+
+      await redis.set(
+         buildBuyCooldownRedisKey(keyId, walletAddress),
+         expiresAt,
+         'EX',
+         durationSeconds
+      );
+      return expiresAt;
+   } catch (error) {
+      logger.warn(
+         {
+            type: 'buy_cooldown_set_failed',
+            keyId,
+            walletAddress,
+            error: error instanceof Error ? error.message : String(error),
+         },
+         'Failed to persist buy cooldown in Redis'
+      );
+      return null;
+   }
+}
+
+/**
+ * Returns the active buy cooldown for a wallet on a key. Reads the Redis key
+ * first; when Redis is unavailable, the key is missing, or the read fails, the
+ * cooldown is recomputed from the database (indexed trade ledger vs. indexed
+ * head) so enforcement still works during a Redis outage.
+ */
+export async function getBuyCooldownStatus(
+   keyId: string,
+   walletAddress: string
+): Promise<{
+   cooldownActive: boolean;
+   cooldownExpiresAt: string | null;
+   remainingSeconds: number;
+}> {
+   const redis = getRedis();
+   const redisKey = buildBuyCooldownRedisKey(keyId, walletAddress);
+
+   if (redis) {
+      try {
+         const cachedExpiry = await redis.get(redisKey);
+         if (cachedExpiry) {
+            const expiry = new Date(cachedExpiry);
+            const remainingMs = expiry.getTime() - Date.now();
+            if (!Number.isNaN(expiry.getTime()) && remainingMs > 0) {
+               return {
+                  cooldownActive: true,
+                  cooldownExpiresAt: expiry.toISOString(),
+                  remainingSeconds: Math.ceil(remainingMs / 1000),
+               };
+            }
+            await redis.del(redisKey);
+         }
+      } catch (error) {
+         logger.warn(
+            {
+               type: 'buy_cooldown_redis_read_failed',
+               keyId,
+               walletAddress,
+               error: error instanceof Error ? error.message : String(error),
+            },
+            'Redis buy cooldown read failed; falling back to database'
+         );
+      }
+   }
+
+   const dbCooldown = await getKeyCooldown(keyId, walletAddress);
+   if (!dbCooldown.cooldown_active || !dbCooldown.unlock_estimated_at) {
+      return {
+         cooldownActive: false,
+         cooldownExpiresAt: null,
+         remainingSeconds: 0,
+      };
+   }
+
+   const cooldownExpiresAt = new Date(
+      dbCooldown.unlock_estimated_at
+   ).toISOString();
+
+   const redisFallback = getRedis();
+   if (redisFallback) {
+      try {
+         const remainingSeconds = Math.max(1, dbCooldown.remaining_seconds);
+         await redisFallback.set(
+            buildBuyCooldownRedisKey(keyId, walletAddress),
+            cooldownExpiresAt,
+            'EX',
+            remainingSeconds
+         );
+      } catch (error) {
+         logger.warn(
+            {
+               type: 'buy_cooldown_cache_write_failed',
+               keyId,
+               walletAddress,
+               error: error instanceof Error ? error.message : String(error),
+            },
+            'Failed to warm Redis cooldown cache after database fallback'
+         );
+      }
+   }
+
+   return {
+      cooldownActive: true,
+      cooldownExpiresAt,
+      remainingSeconds: dbCooldown.remaining_seconds,
+   };
+}
 
 /**
  * Returns the buy cooldown status for a wallet on a key.
