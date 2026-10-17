@@ -302,6 +302,8 @@ export async function evaluatePriceAlertsForMovement(
          },
       });
 
+      let alertsTriggered = 0;
+
       for (const alert of alerts) {
          const targetPrice = toNumber(alert.targetPrice);
          const crossedAbove =
@@ -327,6 +329,7 @@ export async function evaluatePriceAlertsForMovement(
                triggeredAt: new Date(),
             },
          });
+         alertsTriggered += 1;
 
          try {
             await deliverPriceAlertWebhook(alert, {
@@ -352,6 +355,17 @@ export async function evaluatePriceAlertsForMovement(
             );
          }
       }
+
+      logger[alertsTriggered > 0 ? 'info' : 'debug'](
+         {
+            creator_id: movement.creatorId,
+            alerts_evaluated: alerts.length,
+            alerts_triggered: alertsTriggered,
+            new_price: currentPrice,
+            checked_at: new Date().toISOString(),
+         },
+         'Price alert check run'
+      );
    } catch (err) {
       logger.error(
          {
