@@ -44,7 +44,10 @@ import { connectRedis, disconnectRedis } from './utils/redis.utils';
 import { broadcastServerClosing, closeAllConnections } from './utils/sse-fanout.utils';
 import { buildStartupConfigSummary } from './utils/config-summary.utils';
 import { initKeyCreationMetadataSync } from './modules/keys/key-metadata-sync.service';
-import { attachPriceWebSocketGateway } from './modules/price-stream/price-stream.gateway';
+import {
+   attachPriceWebSocketGateway,
+   closePriceWebSocketGateway,
+} from './modules/price-stream/price-stream.gateway';
 
 async function startServer() {
    try {
@@ -132,6 +135,7 @@ function createGracefulShutdownHandler(server: ReturnType<typeof app.listen>) {
       broadcastServerClosing();
       await new Promise(resolve => setTimeout(resolve, 1000));
       closeAllConnections();
+      closePriceWebSocketGateway(server);
 
       stopOwnershipSnapshotCleanupJob();
       stopDetectPriceMovementsJob();

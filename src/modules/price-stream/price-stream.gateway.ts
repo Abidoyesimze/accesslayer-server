@@ -12,6 +12,7 @@ export interface SwapPriceEvent {
 type SubscribedSocket = WebSocket & { subscriptions?: Set<string>; isAlive?: boolean };
 
 const sockets = new Set<SubscribedSocket>();
+const closeHandlers = new WeakMap<Server, () => void>();
 
 /** Attach the price stream at `/ws` and close stale clients every 30 seconds. */
 export function attachPriceWebSocketGateway(server: Server): void {
@@ -25,7 +26,10 @@ export function attachPriceWebSocketGateway(server: Server): void {
          socket.destroy();
          return;
       }
-      if (pathname !== '/ws') return;
+      if (pathname !== '/ws') {
+         socket.destroy();
+         return;
+      }
 
       gateway.handleUpgrade(request, socket, head, client => {
          gateway.emit('connection', client, request);
@@ -72,12 +76,23 @@ export function attachPriceWebSocketGateway(server: Server): void {
       }
    }, 30_000);
    heartbeat.unref();
-   server.once('close', () => {
+   const close = () => {
       clearInterval(heartbeat);
-      for (const client of sockets) client.close(1001, 'Server shutting down');
+      for (const client of sockets) client.terminate();
       sockets.clear();
       gateway.close();
-   });
+   };
+   closeHandlers.set(server, close);
+   server.once('close', close);
+}
+
+/** Close WebSocket clients before the HTTP server drains its connections. */
+export function closePriceWebSocketGateway(server: Server): void {
+   const close = closeHandlers.get(server);
+   if (close) {
+      closeHandlers.delete(server);
+      close();
+   }
 }
 
 /** Publish an indexed bonding-curve trade to clients subscribed to its key. */
