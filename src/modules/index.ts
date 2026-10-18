@@ -37,7 +37,7 @@ import revenueRouter from './revenue/revenue.routes';
 import stakerRouter from './revenue/staker-revenue.routes';
 import vaultRouter from './staking/vault.routes';
 import portfolioRouter from './portfolio/portfolio.routes';
-import referralRouter from './referrals/referrals.routes';
+import referralRouter from './referrals/referral-earnings.routes';
 import contractsRouter from './contracts/contract.routes';
 import stakingRouter from './staking/staking.routes';
 import sellersRouter from './sellers/sellers.routes';
@@ -46,6 +46,7 @@ import factoryRouter from './factory/factory.routes';
 import lpRouter from './lp/lp.routes';
 import auctionRouter from './auctions/auction.routes';
 import holdersRouter from './dividends/holders.routes';
+import tradersRouter from './traders/traders.routes';
 import { BASE as CREATORS_BASE } from '../constants/creator.constants';
 
 const router = Router();
@@ -118,5 +119,6 @@ router.use('/factory', routeBodySizeLimit('default'), factoryRouter);
 router.use('/lp', routeBodySizeLimit('default'), lpRouter);
 router.use('/auctions', routeBodySizeLimit('default'), auctionRouter);
 router.use('/holders', routeBodySizeLimit('default'), holdersRouter);
+router.use('/traders', routeBodySizeLimit('default'), tradersRouter);
 
 export default router;

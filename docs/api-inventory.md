@@ -87,6 +87,18 @@ Wallet activity and trade history endpoints.
 | :----- | :--------------------------- | :------------------------------------------------------------ |
 | `GET`  | `/wallets/:address/activity` | Return paginated trade history (buys and sells) for a wallet. |
 
+## Referrals Module
+
+Wallet-scoped referral reward earnings indexed from `ReferralRewardDistributed`
+events.
+
+- Referral earnings reference: [`docs/referral-earnings.md`](./referral-earnings.md).
+
+| Method | Path                          | Description                                                        |
+| :----- | :---------------------------- | :----------------------------------------------------------------- |
+| `GET`  | `/referrals/:wallet/earnings` | Paginated referral earnings history with an optional date range.   |
+| `GET`  | `/referrals/:wallet/summary`  | Total earnings, tier 1/2/3 breakdown, and referred wallet count.   |
+
 ## Ownership Module
 
 Ownership lookup endpoints.
@@ -147,6 +159,14 @@ the status transitions `active` → `passed` / `failed` / `quorum_not_met`.
 | `POST` | `/governance/proposals`            | Create a proposal and freeze snapshot voting weights (requires the key creator's JWT).       |
 | `POST` | `/governance/proposals/:id/vote`   | Cast a vote weighted by the wallet's snapshot staked balance (requires JWT).                 |
 | `GET`  | `/governance/proposals/escalating` | List proposals currently in quorum escalation (#935).                                        |
+
+## Traders Module
+
+Volume fee discount tiers and trader 30-day rolling volume lookups (#1030).
+
+| Method | Path                        | Description                                                                                              |
+| :----- | :-------------------------- | :------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/traders/:wallet/discount` | Return current volume discount tier, discount bps, and 30-day rolling volume for any wallet (cached 5m). |
 
 ---
 
