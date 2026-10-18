@@ -42,6 +42,22 @@ Public creator discovery and stats endpoints.
 | `GET`  | `/creators`           | List creators with pagination and filtering. |
 | `GET`  | `/creators/:id/stats` | Return public stats for a specific creator.  |
 
+## Search Module
+
+Global search across creator keys, creator profiles and transaction hashes (#1010).
+
+- `GET /search` returns grouped overlay results: keys (top 3), creators (top 3) and transactions (top 1).
+- Key results match on metadata name, symbol and description.
+- Creator results match on display name and wallet-address prefix.
+- Transaction results require an exact tx-hash match.
+- The full-results endpoints use signed keyset cursors ordered by match relevance.
+
+| Method | Path               | Description                                    |
+| :----- | :----------------- | :--------------------------------------------- |
+| `GET`  | `/search?q=`       | Grouped results for the client search overlay. |
+| `GET`  | `/search/keys`     | Cursor-paginated full key search results.      |
+| `GET`  | `/search/creators` | Cursor-paginated full creator search results.  |
+
 ## Webhooks Module
 
 Manage trade webhooks for creator profiles.
@@ -90,6 +106,16 @@ Ownership lookup endpoints.
 | :----- | :----------- | :---------------------------------------------------- |
 | `GET`  | `/ownership` | Look up key ownership by owner address or creator ID. |
 
+## Contracts Module
+
+Centralised Soroban contract interaction service (#899).
+
+- Service reference (retry, error classification, tracking, events): [`docs/soroban-contract-service.md`](./soroban-contract-service.md).
+
+| Method | Path              | Description                                                            |
+| :----- | :---------------- | :--------------------------------------------------------------------- |
+| `POST` | `/contracts/call` | Submit a signed contract transaction through the centralised pipeline. |
+
 ## Metrics Module
 
 Operational metrics for background work.
@@ -106,6 +132,32 @@ Restricted administrative endpoints.
 | :------ | :----------------------------- | :-------------------------------------------------- |
 | `PATCH` | `/admin/creators/:id/metadata` | Update creator metadata such as verification state. |
 | `POST`  | `/admin/indexer/replay`        | Trigger an indexer replay job.                      |
+| `GET`   | `/admin/flash-loan-violations` | Flash loan violations by wallet frequency (#938).   |
+
+## Staking Module
+
+Staking reward multiplier tiers and position calculations (#942).
+
+| Method | Path                                      | Description                                                                               |
+| :----- | :---------------------------------------- | :---------------------------------------------------------------------------------------- |
+| `GET`  | `/staking/multiplier-tiers`               | Return all staking reward multiplier tiers with lock periods and multipliers (cached 5m). |
+| `GET`  | `/staking/positions/:id/effective-weight` | Return the weighted stake calculation for a specific position.                            |
+| `GET`  | `/staking/positions/:id`                  | Return a single staking position with embedded tier data and effective weight.            |
+| `GET`  | `/staking/positions`                      | List staking positions with embedded tier data.                                           |
+
+## Governance Module
+
+Snapshot governance proposals (#878). Voting weight is the voter's staked
+balance frozen at the proposal's snapshot block, so keys moved after creation
+cannot change a vote's weight. Quorum is checked when the proposal closes and
+the status transitions `active` → `passed` / `failed` / `quorum_not_met`.
+
+| Method | Path                               | Description                                                                                  |
+| :----- | :--------------------------------- | :------------------------------------------------------------------------------------------- |
+| `GET`  | `/governance/proposals`            | List proposals with vote tallies and status (filter by `status`, `keyId`; cursor-paginated). |
+| `POST` | `/governance/proposals`            | Create a proposal and freeze snapshot voting weights (requires the key creator's JWT).       |
+| `POST` | `/governance/proposals/:id/vote`   | Cast a vote weighted by the wallet's snapshot staked balance (requires JWT).                 |
+| `GET`  | `/governance/proposals/escalating` | List proposals currently in quorum escalation (#935).                                        |
 
 ---
 
