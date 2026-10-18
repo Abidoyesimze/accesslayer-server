@@ -313,7 +313,8 @@ export async function advanceIndexerCursorForBatch(
 }
 
 /**
- * Processes a mixed batch of indexer events (trades + social metadata).
+ * Processes a mixed batch of indexer events (trades, social metadata and
+ * TWAPUpdated observations).
  *
  * Routes each event type to its handler and advances the ledger cursor
  * exactly once, over the full batch, so batches containing only social
@@ -329,6 +330,23 @@ export async function processIndexerEvents(
 
    if (socialEvents.length > 0) {
       await processSocialMetadataEvents(socialEvents);
+   }
+
+   // TWAPUpdated (#1082). Awaited before the cursor moves: if this throws,
+   // the cursor stays put and the whole batch is redelivered, which is what
+   // keeps the twap_snapshots history free of gaps.
+   // Lazy import, as for the bundle indexer, so Redis is only loaded when a
+   // TWAP event actually arrives.
+   const twapEvents = events.filter(
+      event =>
+         event.eventType === 'TWAP_UPDATED' ||
+         event.eventType === 'TWAPUpdated'
+   );
+   if (twapEvents.length > 0) {
+      const { processTwapUpdatedEvents } = await import(
+         './twap-indexer.service'
+      );
+      await processTwapUpdatedEvents(twapEvents);
    }
 
    if (tradeEvents.length > 0) {
