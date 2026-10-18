@@ -24,6 +24,11 @@ import {
    VOLUME_DISCOUNT_EVENT_TYPES,
 } from './volume-discount-tier-indexer.service';
 import { invalidateTraderDiscountCache } from '../traders/trader-discount.service';
+import {
+   SWAP_EVENT_TYPES,
+   processAtomicSwapEvent,
+   markExpiredSwaps,
+} from './atomic-swap-indexer.service';
 
 /**
  * Processes a batch of on-chain trade events (KEY_BOUGHT or KEY_SOLD).
@@ -61,6 +66,11 @@ export async function processTradeEvents(
 
       if (VOLUME_DISCOUNT_EVENT_TYPES.has(event.eventType)) {
          await processVolumeDiscountTierEvents([event]);
+         return;
+      }
+
+      if (SWAP_EVENT_TYPES.has(event.eventType)) {
+         await processAtomicSwapEvent(event as any, prisma);
          return;
       }
 
@@ -245,6 +255,8 @@ export async function processTradeEvents(
          });
       }
    });
+
+   await markExpiredSwaps(prisma, new Date());
 
    const uniqueEvents = dedupeChainEvents(events);
 

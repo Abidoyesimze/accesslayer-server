@@ -48,6 +48,7 @@ import auctionRouter from './auctions/auction.routes';
 import holdersRouter from './dividends/holders.routes';
 import tradesRouter from './trades/trades.routes';
 import tradersRouter from './traders/traders.routes';
+import swapsRouter from './swaps/swaps.routes';
 import { BASE as CREATORS_BASE } from '../constants/creator.constants';
 
 const router = Router();
@@ -126,5 +127,6 @@ router.use('/auctions', routeBodySizeLimit('default'), auctionRouter);
 router.use('/holders', routeBodySizeLimit('default'), holdersRouter);
 router.use('/trades', routeBodySizeLimit('default'), tradesRouter);
 router.use('/traders', routeBodySizeLimit('default'), tradersRouter);
+router.use('/swaps', routeBodySizeLimit('default'), swapsRouter);
 
 export default router;
