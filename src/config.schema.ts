@@ -251,6 +251,9 @@ export const envSchema = z
       NONCE_REGISTRY_CONTRACT_ID: optionalNonEmptyString,
       NONCE_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(30),
 
+      // LP position registry contract
+      LP_CONTRACT_ID: optionalNonEmptyString,
+
       // Social metadata sync (Pinata gateway used to resolve avatar CIDs)
       PINATA_GATEWAY_URL: z
          .string()
