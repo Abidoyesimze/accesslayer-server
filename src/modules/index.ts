@@ -46,7 +46,9 @@ import factoryRouter from './factory/factory.routes';
 import lpRouter from './lp/lp.routes';
 import auctionRouter from './auctions/auction.routes';
 import holdersRouter from './dividends/holders.routes';
+import tradesRouter from './trades/trades.routes';
 import tradersRouter from './traders/traders.routes';
+import swapsRouter from './swaps/swaps.routes';
 import { BASE as CREATORS_BASE } from '../constants/creator.constants';
 
 const router = Router();
@@ -111,7 +113,11 @@ router.use('/portfolio', routeBodySizeLimit('default'), portfolioRouter);
 router.use('/referrals', routeBodySizeLimit('default'), referralRouter);
 router.use('/contracts', routeBodySizeLimit('default'), contractsRouter);
 router.use('/watchlist', routeBodySizeLimit('default'), watchlistRouter);
-router.use('/investor/watchlist', routeBodySizeLimit('default'), watchlistRouter);
+router.use(
+   '/investor/watchlist',
+   routeBodySizeLimit('default'),
+   watchlistRouter
+);
 router.use('/staking', routeBodySizeLimit('default'), stakingRouter);
 router.use('/sellers', routeBodySizeLimit('default'), sellersRouter);
 router.use('/governance', routeBodySizeLimit('default'), governanceRouter);
@@ -119,6 +125,8 @@ router.use('/factory', routeBodySizeLimit('default'), factoryRouter);
 router.use('/lp', routeBodySizeLimit('default'), lpRouter);
 router.use('/auctions', routeBodySizeLimit('default'), auctionRouter);
 router.use('/holders', routeBodySizeLimit('default'), holdersRouter);
+router.use('/trades', routeBodySizeLimit('default'), tradesRouter);
 router.use('/traders', routeBodySizeLimit('default'), tradersRouter);
+router.use('/swaps', routeBodySizeLimit('default'), swapsRouter);
 
 export default router;

@@ -43,6 +43,11 @@ export interface TradeEventProcessingOptions {
    VOLUME_DISCOUNT_EVENT_TYPES,
 } from './volume-discount-tier-indexer.service';
 import { invalidateTraderDiscountCache } from '../traders/trader-discount.service';
+import {
+   SWAP_EVENT_TYPES,
+   processAtomicSwapEvent,
+   markExpiredSwaps,
+} from './atomic-swap-indexer.service';
 
 /**
  * Processes a batch of on-chain trade events (KEY_BOUGHT or KEY_SOLD).
@@ -71,8 +76,23 @@ export async function processTradeEvents(
          return;
       }
 
+      if (
+         event.eventType === 'BundleExecuted' ||
+         event.eventType === 'BUNDLE_EXECUTED'
+      ) {
+         const { processBundleTradeEvent } =
+            await import('./bundle-trade-indexer.service');
+         await processBundleTradeEvent(event as any, prisma);
+         return;
+      }
+
       if (VOLUME_DISCOUNT_EVENT_TYPES.has(event.eventType)) {
          await processVolumeDiscountTierEvents([event]);
+         return;
+      }
+
+      if (SWAP_EVENT_TYPES.has(event.eventType)) {
+         await processAtomicSwapEvent(event as any, prisma);
          return;
       }
 
@@ -108,7 +128,8 @@ export async function processTradeEvents(
          }
       }
 
-      const { creatorId, actor, amount, price, feePaid, tradeAt, ledger } = event;
+      const { creatorId, actor, amount, price, feePaid, tradeAt, ledger } =
+         event;
       const tradeQty = Number(amount);
       let pricePerKeyXlm = 0;
       try {
@@ -121,7 +142,8 @@ export async function processTradeEvents(
       }
       // payment_asset is optional — absent events default to 'XLM' (#934).
       const paymentAsset: string =
-         typeof event.paymentAsset === 'string' && event.paymentAsset.trim() !== ''
+         typeof event.paymentAsset === 'string' &&
+         event.paymentAsset.trim() !== ''
             ? event.paymentAsset.trim().toUpperCase()
             : 'XLM';
 
@@ -273,6 +295,8 @@ export async function processTradeEvents(
 export async function advanceIndexerCursorForBatch(
    events: IndexerChainEvent[]
 ): Promise<void> {
+   await markExpiredSwaps(prisma, new Date());
+
    const uniqueEvents = dedupeChainEvents(events);
 
    const processedLedgers = uniqueEvents
@@ -344,7 +368,7 @@ function computeBatchHash(
 export async function processSunsetFlaggedEvents(
    events: IndexerChainEvent[]
 ): Promise<void> {
-   await processIndexerChainEvents(events, async (event) => {
+   await processIndexerChainEvents(events, async event => {
       if (event.eventType !== 'KEY_SUNSET_FLAGGED') {
          return;
       }

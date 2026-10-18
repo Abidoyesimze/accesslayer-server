@@ -94,10 +94,10 @@ events.
 
 - Referral earnings reference: [`docs/referral-earnings.md`](./referral-earnings.md).
 
-| Method | Path                          | Description                                                        |
-| :----- | :---------------------------- | :----------------------------------------------------------------- |
-| `GET`  | `/referrals/:wallet/earnings` | Paginated referral earnings history with an optional date range.   |
-| `GET`  | `/referrals/:wallet/summary`  | Total earnings, tier 1/2/3 breakdown, and referred wallet count.   |
+| Method | Path                          | Description                                                      |
+| :----- | :---------------------------- | :--------------------------------------------------------------- |
+| `GET`  | `/referrals/:wallet/earnings` | Paginated referral earnings history with an optional date range. |
+| `GET`  | `/referrals/:wallet/summary`  | Total earnings, tier 1/2/3 breakdown, and referred wallet count. |
 
 ## Ownership Module
 
