@@ -44,6 +44,7 @@ import {
    VOLUME_DISCOUNT_EVENT_TYPES,
 } from './volume-discount-tier-indexer.service';
 import { invalidateTraderDiscountCache } from '../traders/trader-discount.service';
+import { broadcastSwapPrice } from '../price-stream/price-stream.gateway';
 import {
    SWAP_EVENT_TYPES,
    processAtomicSwapEvent,
@@ -248,6 +249,14 @@ export async function processTradeEvents(
          ledger: Number(ledger),
          supply: BigInt(supplyAfterTrade),
          direction: event.eventType === 'KEY_BOUGHT' ? 'BUY' : 'SELL',
+      });
+
+      broadcastSwapPrice({
+         key_id: creatorId,
+         price: pricePerKeyXlm.toString(),
+         amount: String(amount),
+         direction: event.eventType === 'KEY_BOUGHT' ? 'buy' : 'sell',
+         timestamp: new Date(tradeAt).toISOString(),
       });
 
       // 5. Emit a structured log for confirmed sells, mirroring buy-side logging.

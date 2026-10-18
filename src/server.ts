@@ -44,6 +44,7 @@ import { connectRedis, disconnectRedis } from './utils/redis.utils';
 import { broadcastServerClosing, closeAllConnections } from './utils/sse-fanout.utils';
 import { buildStartupConfigSummary } from './utils/config-summary.utils';
 import { initKeyCreationMetadataSync } from './modules/keys/key-metadata-sync.service';
+import { attachPriceWebSocketGateway } from './modules/price-stream/price-stream.gateway';
 
 async function startServer() {
    try {
@@ -103,6 +104,7 @@ async function startServer() {
       const server = app.listen(envConfig.PORT, () => {
          logger.info(`Server running on port ${envConfig.PORT}`);
       });
+      attachPriceWebSocketGateway(server);
 
       return server;
    } catch (error) {
