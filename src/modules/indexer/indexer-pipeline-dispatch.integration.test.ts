@@ -16,6 +16,14 @@ jest.mock('./social-metadata-indexer.service', () => ({
    SOCIAL_METADATA_UPDATED_EVENT_TYPE: 'SOCIAL_METADATA_UPDATED',
 }));
 
+jest.mock('./lp-indexer.service', () => {
+   const actual = jest.requireActual('./lp-indexer.service');
+   return {
+      ...actual,
+      processLpEvents: jest.fn().mockResolvedValue(undefined),
+   };
+});
+
 jest.mock('../ownership/ownership.service', () => ({
    updateOwnership: jest.fn(),
    recordKeyPurchase: jest.fn(),
@@ -189,5 +197,29 @@ describe('processIndexerEvents', () => {
       ]);
 
       expect(mockPrisma.indexedLedger.upsert).toHaveBeenCalledTimes(1);
+   });
+
+   it('routes LP events to processLpEvents and ignores non-LP events', async () => {
+      const { processLpEvents } = await import('./lp-indexer.service');
+      const lpAdded = {
+         txHash: 'tx-lp-1',
+         eventIndex: 0,
+         eventType: 'LiquidityAdded',
+         ledger: 950,
+         wallet: 'wallet-1',
+         keyId: 'key-1',
+         sharePercent: '10',
+      };
+      const nonLp = {
+         txHash: 'tx-other',
+         eventIndex: 0,
+         eventType: 'OTHER_EVENT',
+         ledger: 950,
+      };
+
+      await processIndexerEvents([lpAdded, nonLp]);
+
+      expect(processLpEvents).toHaveBeenCalledTimes(1);
+      expect(processLpEvents).toHaveBeenCalledWith([lpAdded]);
    });
 });

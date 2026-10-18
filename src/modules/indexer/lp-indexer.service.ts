@@ -40,6 +40,15 @@ function normalizeEventType(
    }
 }
 
+export function isLpEventType(eventType: string): boolean {
+   const normalized = normalizeEventType(eventType);
+   return (
+      normalized === 'LP_ADDED' ||
+      normalized === 'LP_CLAIMED' ||
+      normalized === 'LP_REMOVED'
+   );
+}
+
 function isValidEvent(event: IndexerChainEvent): event is LpChainEvent {
    const e = event as Partial<LpChainEvent>;
    if (
