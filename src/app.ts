@@ -9,6 +9,7 @@ import tradesRouter from './modules/trades/trades.routes';
 import tradersRouter from './modules/traders/traders.routes';
 import nonceRouter from './modules/nonce/nonce.routes';
 import swapsRouter from './modules/swaps/swaps.routes';
+import keysRouter from './modules/keys/keys.routes';
 import { corsMiddleware } from './middlewares/cors.middleware';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -112,6 +113,7 @@ app.use('/staking', routeBodySizeLimit('default'), stakingRouter);
 app.use('/trades', routeBodySizeLimit('default'), tradesRouter);
 app.use('/traders', routeBodySizeLimit('default'), tradersRouter);
 app.use('/swaps', routeBodySizeLimit('default'), swapsRouter);
+app.use('/keys', routeBodySizeLimit('default'), keysRouter);
 
 // Catches body-parse errors (including entity.too.large from the per-group
 // JSON parsers mounted inside router) — must come after the router since

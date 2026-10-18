@@ -358,6 +358,22 @@ export async function processIndexerEvents(
       await processTwapUpdatedEvents(twapEvents);
    }
 
+   const whitelistEvents = events.filter(
+      event =>
+         event.eventType === 'WalletWhitelisted' ||
+         event.eventType === 'WALLET_WHITELISTED' ||
+         event.eventType === 'WHITELIST_ADDED' ||
+         event.eventType === 'WalletRemovedFromWhitelist' ||
+         event.eventType === 'WALLET_REMOVED_FROM_WHITELIST' ||
+         event.eventType === 'WHITELIST_REMOVED'
+   );
+   if (whitelistEvents.length > 0) {
+      const { processWhitelistEvents } = await import(
+         './whitelist-indexer.service'
+      );
+      await processWhitelistEvents(whitelistEvents);
+   }
+
    if (tradeEvents.length > 0) {
       await processTradeEvents(tradeEvents, { advanceCursor: false });
    }
