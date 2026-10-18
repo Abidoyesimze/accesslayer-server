@@ -338,6 +338,11 @@ export const envSchema = z
          .positive()
          .default(5),
 
+      // Minimum number of observations a TWAPUpdated snapshot must carry for
+      // GET /keys/:key_id/twap to treat it as valid (#1082). Below this the
+      // endpoint responds with TWAPInvalid instead of a price.
+      TWAP_MIN_OBSERVATIONS: z.coerce.number().int().positive().default(3),
+
       // Governance proposal sync job
       GOVERNANCE_SYNC_ENABLED: booleanCoerce.default(false),
       GOVERNANCE_SYNC_INTERVAL_MINUTES: z.coerce

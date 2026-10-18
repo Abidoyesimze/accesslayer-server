@@ -149,6 +149,7 @@ import {
    KeyNotFoundError as PriceKeyNotFoundError,
 } from './key-price.service';
 import { getKeyTwap } from './key-twap-window.service';
+import { getTwapSnapshot } from './key-twap-snapshot.service';
 
 const priceHistoryQuerySchema = z.object({
    from: z.string().datetime(),
@@ -848,10 +849,80 @@ router.get('/:keyId/curve-config', async (req, res, next) => {
    }
 });
 
-// ── GET /:keyId/twap (#866) ───────────────────────────────────
-// Distinct from GET /:keyId/price/twap (#963): this endpoint serves the
-// 1h/24h/7d window set and returns twapPrice/windowLedgers/snapshotCount,
-// with a time-weighted price from trade history and a spot-price fallback.
+// ── GET /:keyId/twap (#1082) ──────────────────────────────────
+// TWAP from the indexed TWAPUpdated contract events (twap_snapshots table),
+// windows 1h|4h|24h, 60s cache invalidated per key by the indexer.
+// Responds 422 with code TWAPInvalid when the latest snapshot has fewer
+// observations than TWAP_MIN_OBSERVATIONS (or none has been indexed).
+
+const twapSnapshotQuerySchema = z.object({
+   window: z.enum(TWAP_WINDOWS, {
+      errorMap: () => ({
+         message: 'Invalid window param. Must be 1h, 4h, or 24h',
+      }),
+   }),
+});
+
+router.get('/:keyId/twap', async (req, res, next) => {
+   const keyId = String(req.params.keyId);
+   const parsed = twapSnapshotQuerySchema.safeParse(req.query);
+   if (!parsed.success) {
+      sendError(
+         res,
+         422,
+         ErrorCode.UNPROCESSABLE_ENTITY,
+         'Invalid window param. Must be 1h, 4h, or 24h',
+         zodIssuesToDetails(parsed.error.issues)
+      );
+      return;
+   }
+
+   try {
+      const creator = await prisma.creatorProfile.findFirst({
+         where: { OR: [{ id: keyId }, { handle: keyId }] },
+         select: { id: true },
+      });
+      if (!creator) {
+         sendNotFound(res, 'Key');
+         return;
+      }
+
+      const result = await getTwapSnapshot(creator.id, parsed.data.window);
+      if (!result.valid) {
+         sendError(
+            res,
+            422,
+            ErrorCode.TWAP_INVALID,
+            `TWAP unavailable: ${result.observation_count} observation(s) in the ${result.window} window, minimum is ${result.min_observations}`,
+            [
+               {
+                  field: 'observation_count',
+                  message: String(result.observation_count),
+               },
+               {
+                  field: 'min_observations',
+                  message: String(result.min_observations),
+               },
+            ]
+         );
+         return;
+      }
+
+      sendSuccess(res, {
+         twap_price: result.twap_price,
+         window: result.window,
+         computed_at: result.computed_at,
+      });
+   } catch (error) {
+      next(error);
+   }
+});
+
+// ── GET /:keyId/twap/trade-history (#866) ─────────────────────
+// The earlier #866 endpoint, moved off /:keyId/twap when #1082 claimed that
+// path. Distinct from GET /:keyId/price/twap (#963): it serves the 1h/24h/7d
+// window set and returns twapPrice/windowLedgers/snapshotCount, computed from
+// trade history with a spot-price fallback.
 
 const twapWindowQuerySchema = z.object({
    window: z.enum(['1h', '24h', '7d'], {
@@ -861,7 +932,7 @@ const twapWindowQuerySchema = z.object({
    }),
 });
 
-router.get('/:keyId/twap', async (req, res, next) => {
+router.get('/:keyId/twap/trade-history', async (req, res, next) => {
    const keyId = String(req.params.keyId);
    const parsed = twapWindowQuerySchema.safeParse(req.query);
    if (!parsed.success) {
