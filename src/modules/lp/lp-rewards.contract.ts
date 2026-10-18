@@ -133,7 +133,7 @@ export async function getLpRewardsLive(
    deps?: GetLpRewardsLiveDeps
 ): Promise<string> {
    const contractId =
-      deps?.contractIdOverride ?? (envConfig as any).LP_CONTRACT_ID;
+      deps?.contractIdOverride ?? envConfig.LP_CONTRACT_ID;
    if (!contractId) {
       throw new LpContractNotConfiguredError();
    }
