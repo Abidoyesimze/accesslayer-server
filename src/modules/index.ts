@@ -1,4 +1,3 @@
-
 import { Router } from 'express';
 import { routeBodySizeLimit } from '../middlewares/body-size-limit.middleware';
 import { queryCostGovernor } from '../middlewares/query-cost-governor.middleware';
@@ -51,6 +50,7 @@ import holdersRouter from './dividends/holders.routes';
 import discoveryRouter from './keys/discovery.routes';
 import tradesRouter from './trades/trades.routes';
 import tradersRouter from './traders/traders.routes';
+import nonceRouter from './nonce/nonce.routes';
 import swapsRouter from './swaps/swaps.routes';
 
 import { BASE as CREATORS_BASE } from '../constants/creator.constants';
@@ -131,6 +131,7 @@ router.use('/holders', routeBodySizeLimit('default'), holdersRouter);
 router.use('/discovery', routeBodySizeLimit('default'), discoveryRouter);
 router.use('/trades', routeBodySizeLimit('default'), tradesRouter);
 router.use('/traders', routeBodySizeLimit('default'), tradersRouter);
+router.use('/nonce', routeBodySizeLimit('default'), nonceRouter);
 router.use('/swaps', routeBodySizeLimit('default'), swapsRouter);
 
 export default router;
