@@ -44,6 +44,16 @@ export async function processTradeEvents(
          return;
       }
 
+      if (
+         event.eventType === 'BundleExecuted' ||
+         event.eventType === 'BUNDLE_EXECUTED'
+      ) {
+         const { processBundleTradeEvent } =
+            await import('./bundle-trade-indexer.service');
+         await processBundleTradeEvent(event as any, prisma);
+         return;
+      }
+
       // Validate event type
       if (event.eventType !== 'KEY_BOUGHT' && event.eventType !== 'KEY_SOLD') {
          return;
@@ -76,7 +86,8 @@ export async function processTradeEvents(
          }
       }
 
-      const { creatorId, actor, amount, price, feePaid, tradeAt, ledger } = event;
+      const { creatorId, actor, amount, price, feePaid, tradeAt, ledger } =
+         event;
       const tradeQty = Number(amount);
       let pricePerKeyXlm = 0;
       try {
@@ -89,7 +100,8 @@ export async function processTradeEvents(
       }
       // payment_asset is optional — absent events default to 'XLM' (#934).
       const paymentAsset: string =
-         typeof event.paymentAsset === 'string' && event.paymentAsset.trim() !== ''
+         typeof event.paymentAsset === 'string' &&
+         event.paymentAsset.trim() !== ''
             ? event.paymentAsset.trim().toUpperCase()
             : 'XLM';
 
@@ -266,7 +278,7 @@ function computeBatchHash(
 export async function processSunsetFlaggedEvents(
    events: IndexerChainEvent[]
 ): Promise<void> {
-   await processIndexerChainEvents(events, async (event) => {
+   await processIndexerChainEvents(events, async event => {
       if (event.eventType !== 'KEY_SUNSET_FLAGGED') {
          return;
       }
