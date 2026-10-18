@@ -128,6 +128,14 @@ export async function processTradeEvent(
       // Non-critical cache invalidation failure
    }
 
+   try {
+      const { invalidateDiscoveryCache } =
+         await import('../keys/discovery.service');
+      invalidateDiscoveryCache();
+   } catch {
+      // Non-critical cache invalidation failure
+   }
+
    return true;
 }
 
