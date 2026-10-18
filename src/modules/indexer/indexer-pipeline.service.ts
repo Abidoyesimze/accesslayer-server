@@ -39,6 +39,7 @@ export interface TradeEventProcessingOptions {
     */
    advanceCursor?: boolean;
 }
+import {
    processVolumeDiscountTierEvents,
    VOLUME_DISCOUNT_EVENT_TYPES,
 } from './volume-discount-tier-indexer.service';
