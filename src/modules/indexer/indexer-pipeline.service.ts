@@ -333,6 +333,14 @@ export async function processIndexerEvents(
    events: IndexerChainEvent[]
 ): Promise<void> {
    const tradeEvents = events.filter(isTradeEvent);
+   const dividendEvents = events.filter(
+      event =>
+         event.eventType === 'DividendSnapshotCreated' ||
+         event.eventType === 'DIVIDEND_SNAPSHOT_CREATED' ||
+         event.eventType === 'DIVIDEND_DISTRIBUTED' ||
+         event.eventType === 'DividendClaimed' ||
+         event.eventType === 'DIVIDEND_CLAIMED'
+   );
    const socialEvents = events.filter(
       event => event.eventType === SOCIAL_METADATA_UPDATED_EVENT_TYPE
    );
@@ -360,6 +368,13 @@ export async function processIndexerEvents(
 
    if (tradeEvents.length > 0) {
       await processTradeEvents(tradeEvents, { advanceCursor: false });
+   }
+
+   if (dividendEvents.length > 0) {
+      const { processDividendEvents } = await import(
+         './dividend-indexer.service'
+      );
+      await processDividendEvents(dividendEvents, { advanceCursor: false });
    }
 
    await advanceIndexerCursorForBatch(events);
