@@ -9,7 +9,7 @@ function unauthorized(res: Response) {
 }
 
 export async function getCreatorRevenueHandler(req: Request, res: Response, next: NextFunction) {
-   const wallet = req.params.wallet;
+   const wallet = req.params.wallet as string;
    const auth = req.headers.authorization;
    if (!auth) return unauthorized(res);
    try {
@@ -19,7 +19,7 @@ export async function getCreatorRevenueHandler(req: Request, res: Response, next
 }
 
 export async function getRevenueHistoryHandler(req: Request, res: Response, next: NextFunction) {
-   const wallet = req.params.wallet;
+   const wallet = req.params.wallet as string;
    const auth = req.headers.authorization;
    if (!auth) return unauthorized(res);
    const page = Number(req.query.page ?? 1);
@@ -31,7 +31,7 @@ export async function getRevenueHistoryHandler(req: Request, res: Response, next
 }
 
 export async function withdrawHandler(req: Request, res: Response, next: NextFunction) {
-   const wallet = req.params.wallet;
+   const wallet = req.params.wallet as string;
    const auth = req.headers.authorization;
    if (!auth) return unauthorized(res);
    try {
