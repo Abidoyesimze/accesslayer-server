@@ -35,6 +35,11 @@ import {
    requireJwtAuth,
 } from '../../middlewares/jwt-auth.middleware';
 import { validateBody } from '../../middlewares/validate-body.middleware';
+import {
+   validateSignedActionNonce,
+   NonceAlreadyConsumedError,
+   NonceMismatchError,
+} from '../nonce';
 
 const router = Router();
 
@@ -136,6 +141,19 @@ router.post(
    validateBody(CreateGovernanceProposalSchema),
    async (req: AuthenticatedRequest, res, next) => {
       try {
+         const nonce =
+            req.body.nonce ??
+            (req.headers['x-nonce'] !== undefined
+               ? Number(req.headers['x-nonce'])
+               : undefined);
+         if (nonce !== undefined) {
+            await validateSignedActionNonce(
+               req.user!.wallet,
+               nonce,
+               'governance:create_proposal'
+            );
+         }
+
          const result = await createGovernanceProposal(
             req.body,
             req.user!.wallet
@@ -150,6 +168,14 @@ router.post(
             201
          );
       } catch (error) {
+         if (error instanceof NonceAlreadyConsumedError) {
+            sendConflict(res, error.message);
+            return;
+         }
+         if (error instanceof NonceMismatchError) {
+            sendError(res, 400, ErrorCode.BAD_REQUEST, error.message);
+            return;
+         }
          if (error instanceof GovernanceKeyNotFoundError) {
             sendNotFound(res, 'Key');
             return;
@@ -185,6 +211,19 @@ router.post(
    validateBody(CastGovernanceVoteSchema),
    async (req: AuthenticatedRequest, res, next) => {
       try {
+         const nonce =
+            req.body.nonce ??
+            (req.headers['x-nonce'] !== undefined
+               ? Number(req.headers['x-nonce'])
+               : undefined);
+         if (nonce !== undefined) {
+            await validateSignedActionNonce(
+               req.user!.wallet,
+               nonce,
+               'governance:vote_proposal'
+            );
+         }
+
          const result = await castGovernanceVote(
             String(req.params.id),
             req.user!.wallet,
@@ -192,6 +231,14 @@ router.post(
          );
          sendSuccess(res, result, 200);
       } catch (error) {
+         if (error instanceof NonceAlreadyConsumedError) {
+            sendConflict(res, error.message);
+            return;
+         }
+         if (error instanceof NonceMismatchError) {
+            sendError(res, 400, ErrorCode.BAD_REQUEST, error.message);
+            return;
+         }
          if (error instanceof GovernanceProposalNotFoundError) {
             sendNotFound(res, 'Proposal');
             return;
