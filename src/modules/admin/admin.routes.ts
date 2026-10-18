@@ -47,6 +47,7 @@ import { ErrorCode } from '../../constants/error.constants';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../utils/prisma.utils';
 import { logger } from '../../utils/logger.utils';
+import { invalidateKeyVestingCache } from '../vesting/vesting.service';
 
 function isValidStellarAddress(address: string): boolean {
    return typeof address === 'string' && /^G[A-Z2-7]{55}$/.test(address);
@@ -304,6 +305,7 @@ adminRouter.post('/vesting', adminGuard, async (req: AdminRequest, res, next) =>
             claimedKeys: new Prisma.Decimal(0),
          },
       });
+      await invalidateKeyVestingCache(String(keyId), String(beneficiary));
 
       sendSuccess(res, {
          ...schedule,
