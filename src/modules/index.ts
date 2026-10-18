@@ -37,7 +37,7 @@ import revenueRouter from './revenue/revenue.routes';
 import stakerRouter from './revenue/staker-revenue.routes';
 import vaultRouter from './staking/vault.routes';
 import portfolioRouter from './portfolio/portfolio.routes';
-import referralRouter from './referrals/referrals.routes';
+import referralRouter from './referrals/referral-earnings.routes';
 import contractsRouter from './contracts/contract.routes';
 import stakingRouter from './staking/staking.routes';
 import sellersRouter from './sellers/sellers.routes';
