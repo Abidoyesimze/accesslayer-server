@@ -40,7 +40,7 @@ import vaultRouter from './staking/vault.routes';
 import portfolioRouter from './portfolio/portfolio.routes';
 import referralTierRouter from './referrals/referral-tier.routes';
 import referralRouter from './referrals/referrals.routes';
-import referralRouter from './referrals/referral-earnings.routes';
+import referralEarningsRouter from './referrals/referral-earnings.routes';
 import contractsRouter from './contracts/contract.routes';
 import stakingRouter from './staking/staking.routes';
 import sellersRouter from './sellers/sellers.routes';
@@ -116,6 +116,7 @@ router.use('/staking', routeBodySizeLimit('default'), vaultRouter);
 router.use('/portfolio', routeBodySizeLimit('default'), portfolioRouter);
 router.use('/referrals', routeBodySizeLimit('default'), referralTierRouter);
 router.use('/referrals', routeBodySizeLimit('default'), referralRouter);
+router.use('/referrals', routeBodySizeLimit('default'), referralEarningsRouter);
 router.use('/contracts', routeBodySizeLimit('default'), contractsRouter);
 router.use('/watchlist', routeBodySizeLimit('default'), watchlistRouter);
 router.use(
