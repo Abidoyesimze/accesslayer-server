@@ -52,6 +52,7 @@ import tradesRouter from './trades/trades.routes';
 import tradersRouter from './traders/traders.routes';
 import nonceRouter from './nonce/nonce.routes';
 import swapsRouter from './swaps/swaps.routes';
+import eventsRouter from './events/events.routes';
 
 import { BASE as CREATORS_BASE } from '../constants/creator.constants';
 
