@@ -384,6 +384,14 @@ export async function processIndexerEvents(
       await processTradeEvents(tradeEvents, { advanceCursor: false });
    }
 
+   const { isLpEventType, processLpEvents } = await import(
+      './lp-indexer.service'
+   );
+   const lpEvents = events.filter(event => isLpEventType(event.eventType));
+   if (lpEvents.length > 0) {
+      await processLpEvents(lpEvents);
+   }
+
    await advanceIndexerCursorForBatch(events);
 }
 
