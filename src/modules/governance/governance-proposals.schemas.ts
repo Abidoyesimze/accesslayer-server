@@ -5,6 +5,7 @@ const PROPOSAL_STATUSES = [
    'passed',
    'failed',
    'quorum_not_met',
+   'executed',
 ] as const;
 
 /**

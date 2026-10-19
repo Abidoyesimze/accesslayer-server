@@ -30,6 +30,17 @@ function isTradeEvent(event: IndexerChainEvent): boolean {
    );
 }
 
+function isGovernanceProposalEvent(event: IndexerChainEvent): boolean {
+   return (
+      event.eventType === 'PROPOSAL_CREATED' ||
+      event.eventType === 'ProposalCreated' ||
+      event.eventType === 'VOTE_CAST' ||
+      event.eventType === 'VoteCast' ||
+      event.eventType === 'PROPOSAL_EXECUTED' ||
+      event.eventType === 'ProposalExecuted'
+   );
+}
+
 export interface TradeEventProcessingOptions {
    /**
     * Advance the shared ledger cursor after processing the batch.
@@ -333,6 +344,14 @@ export async function processIndexerEvents(
    events: IndexerChainEvent[]
 ): Promise<void> {
    const tradeEvents = events.filter(isTradeEvent);
+   const dividendEvents = events.filter(
+      event =>
+         event.eventType === 'DividendSnapshotCreated' ||
+         event.eventType === 'DIVIDEND_SNAPSHOT_CREATED' ||
+         event.eventType === 'DIVIDEND_DISTRIBUTED' ||
+         event.eventType === 'DividendClaimed' ||
+         event.eventType === 'DIVIDEND_CLAIMED'
+   );
    const socialEvents = events.filter(
       event => event.eventType === SOCIAL_METADATA_UPDATED_EVENT_TYPE
    );
@@ -374,8 +393,34 @@ export async function processIndexerEvents(
       await processWhitelistEvents(whitelistEvents);
    }
 
+   // Governance lifecycle events (PROPOSAL_CREATED / VOTE_CAST /
+   // PROPOSAL_EXECUTED). Processed in order before the cursor moves so a
+   // batch that creates a proposal and records its votes stays consistent.
+   const governanceEvents = events.filter(isGovernanceProposalEvent);
+   if (governanceEvents.length > 0) {
+      const { processGovernanceProposalEvents } = await import(
+         './governance-proposal-indexer.service'
+      );
+      await processGovernanceProposalEvents(governanceEvents);
+   }
+
    if (tradeEvents.length > 0) {
       await processTradeEvents(tradeEvents, { advanceCursor: false });
+   }
+
+   if (dividendEvents.length > 0) {
+      const { processDividendEvents } = await import(
+         './dividend-indexer.service'
+      );
+      await processDividendEvents(dividendEvents, { advanceCursor: false });
+   }
+
+   const { isLpEventType, processLpEvents } = await import(
+      './lp-indexer.service'
+   );
+   const lpEvents = events.filter(event => isLpEventType(event.eventType));
+   if (lpEvents.length > 0) {
+      await processLpEvents(lpEvents);
    }
 
    await advanceIndexerCursorForBatch(events);
