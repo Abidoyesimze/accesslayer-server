@@ -28,7 +28,7 @@ model KeyMilestone {
   keyId              String
   keyMetadataId     String?
   milestoneIndex    Int
-  supplyAtCossing  BigInt   @map("supply_at_crossing")
+  supplyAtCrossing  BigInt   @map("supply_at_crossing")
   feeBps            Int      @map("fee_bps")
   timestamp         DateTime
   txHash            String   @map("tx_hash")
