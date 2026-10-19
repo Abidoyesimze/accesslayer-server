@@ -7,6 +7,7 @@ import {
    processSocialMetadataEvents,
    SOCIAL_METADATA_UPDATED_EVENT_TYPE,
 } from './social-metadata-indexer.service';
+import { processDividendEvents } from './dividend-indexer.service';
 import { processGovernanceProposalEvents } from './governance-proposal-indexer.service';
 import { upsertPriceSnapshot } from './price-snapshot.service';
 import { prisma } from '../../utils/prisma.utils';
@@ -17,6 +18,9 @@ jest.mock('./social-metadata-indexer.service', () => ({
    SOCIAL_METADATA_UPDATED_EVENT_TYPE: 'SOCIAL_METADATA_UPDATED',
 }));
 
+jest.mock('./dividend-indexer.service', () => ({
+   processDividendEvents: jest.fn(),
+}));
 jest.mock('./lp-indexer.service', () => {
    const actual = jest.requireActual('./lp-indexer.service');
    return {
@@ -76,6 +80,7 @@ jest.mock('../../utils/logger.utils', () => ({
 }));
 
 const mockSocialHandler = processSocialMetadataEvents as jest.Mock;
+const mockDividendHandler = processDividendEvents as jest.Mock;
 const mockGovernanceHandler = processGovernanceProposalEvents as jest.Mock;
 const mockUpsertPriceSnapshot = upsertPriceSnapshot as jest.Mock;
 const mockPrisma = prisma as unknown as {
@@ -167,6 +172,28 @@ describe('processIndexerEvents', () => {
             update: expect.objectContaining({ ledger: 800 }),
          })
       );
+   });
+
+   it('routes dividend snapshot and claim events to the dividend indexer', async () => {
+      const snapshotEvent = socialEvent({
+         txHash: 'tx-dividend-snapshot',
+         eventType: 'DividendSnapshotCreated',
+         ledger: 810,
+      });
+      const claimEvent = socialEvent({
+         txHash: 'tx-dividend-claim',
+         eventIndex: 1,
+         eventType: 'DividendClaimed',
+         ledger: 811,
+      });
+
+      await processIndexerEvents([snapshotEvent, claimEvent]);
+
+      expect(mockDividendHandler).toHaveBeenCalledWith(
+         [snapshotEvent, claimEvent],
+         { advanceCursor: false }
+      );
+      expect(mockPrisma.indexedLedger.upsert).toHaveBeenCalledTimes(1);
    });
 
    it('still advances the cursor for batches with only unknown event types', async () => {
