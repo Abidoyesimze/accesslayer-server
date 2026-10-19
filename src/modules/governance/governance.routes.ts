@@ -9,7 +9,9 @@ import {
 import {
    castGovernanceVote,
    createGovernanceProposal,
+   getGovernanceProposal,
    getGovernanceVotingWeight,
+   getGovernanceWalletVote,
    DuplicateGovernanceVoteError,
    GovernanceKeyNotFoundError,
    GovernanceProposalNotFoundError,
@@ -122,6 +124,62 @@ router.get('/proposals/:id/weight', async (req, res, next) => {
       next(error);
    }
 });
+
+/**
+ * GET /governance/proposals/:proposal_id
+ *
+ * Single proposal detail with the full vote breakdown. `:proposal_id`
+ * accepts the internal id or the on-chain proposalId. Status, tally, quorum,
+ * and time remaining are computed from the stored on-chain state at request
+ * time.
+ */
+router.get('/proposals/:proposal_id', async (req, res, next) => {
+   try {
+      const result = await getGovernanceProposal(
+         String(req.params.proposal_id)
+      );
+      sendSuccess(res, result);
+   } catch (error) {
+      if (error instanceof GovernanceProposalNotFoundError) {
+         sendNotFound(res, 'Proposal');
+         return;
+      }
+      next(error);
+   }
+});
+
+/**
+ * GET /governance/proposals/:proposal_id/votes/:wallet
+ *
+ * Returns the wallet's vote (option and weight) for the proposal together
+ * with its frozen snapshot voting weight.
+ */
+router.get(
+   '/proposals/:proposal_id/votes/:wallet',
+   async (req, res, next) => {
+      const wallet = String(req.params.wallet ?? '').trim();
+      if (wallet.length === 0) {
+         sendValidationError(res, 'Invalid path parameters', [
+            { field: 'wallet', message: 'wallet is required' },
+         ]);
+         return;
+      }
+
+      try {
+         const result = await getGovernanceWalletVote(
+            String(req.params.proposal_id),
+            wallet
+         );
+         sendSuccess(res, result);
+      } catch (error) {
+         if (error instanceof GovernanceProposalNotFoundError) {
+            sendNotFound(res, 'Proposal');
+            return;
+         }
+         next(error);
+      }
+   }
+);
 
 /**
  * POST /governance/proposals

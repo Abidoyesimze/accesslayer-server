@@ -30,6 +30,17 @@ function isTradeEvent(event: IndexerChainEvent): boolean {
    );
 }
 
+function isGovernanceProposalEvent(event: IndexerChainEvent): boolean {
+   return (
+      event.eventType === 'PROPOSAL_CREATED' ||
+      event.eventType === 'ProposalCreated' ||
+      event.eventType === 'VOTE_CAST' ||
+      event.eventType === 'VoteCast' ||
+      event.eventType === 'PROPOSAL_EXECUTED' ||
+      event.eventType === 'ProposalExecuted'
+   );
+}
+
 export interface TradeEventProcessingOptions {
    /**
     * Advance the shared ledger cursor after processing the batch.
@@ -366,6 +377,17 @@ export async function processIndexerEvents(
       await processTwapUpdatedEvents(twapEvents);
    }
 
+   // Governance lifecycle events (PROPOSAL_CREATED / VOTE_CAST /
+   // PROPOSAL_EXECUTED). Processed in order before the cursor moves so a
+   // batch that creates a proposal and records its votes stays consistent.
+   const governanceEvents = events.filter(isGovernanceProposalEvent);
+   if (governanceEvents.length > 0) {
+      const { processGovernanceProposalEvents } = await import(
+         './governance-proposal-indexer.service'
+      );
+      await processGovernanceProposalEvents(governanceEvents);
+   }
+
    if (tradeEvents.length > 0) {
       await processTradeEvents(tradeEvents, { advanceCursor: false });
    }
@@ -375,6 +397,14 @@ export async function processIndexerEvents(
          './dividend-indexer.service'
       );
       await processDividendEvents(dividendEvents, { advanceCursor: false });
+   }
+
+   const { isLpEventType, processLpEvents } = await import(
+      './lp-indexer.service'
+   );
+   const lpEvents = events.filter(event => isLpEventType(event.eventType));
+   if (lpEvents.length > 0) {
+      await processLpEvents(lpEvents);
    }
 
    await advanceIndexerCursorForBatch(events);
