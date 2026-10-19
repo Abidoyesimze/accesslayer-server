@@ -18,6 +18,7 @@ import webhookRouter from './webhooks/webhook.router';
 import walletsRouter from './wallets/wallets.routes';
 import alertsRouter from './alerts/alert.router';
 import invoiceRouter from './invoice/invoice.routes';
+import { issuerRouter } from './invoice/invoice-protocol.routes';
 import freezeRouter from './freeze/freeze.routes';
 import platformRouter from './platform/platform.routes';
 import searchRouter from './search/search.routes';
@@ -80,6 +81,7 @@ router.use('/admin', routeBodySizeLimit('admin'), adminRouter);
 router.use('/activity', routeBodySizeLimit('default'), activityRouter);
 router.use('/ownership', routeBodySizeLimit('default'), ownershipRouter);
 router.use('/invoices', routeBodySizeLimit('default'), invoiceRouter);
+router.use('/issuers', routeBodySizeLimit('default'), issuerRouter);
 router.use('/subscriptions', routeBodySizeLimit('default'), subscriptionRouter);
 router.use(CREATORS_BASE, routeBodySizeLimit('creators'), webhookRouter);
 router.use('/wallets', routeBodySizeLimit('default'), walletsRouter);
@@ -94,9 +96,9 @@ router.use('/keys', routeBodySizeLimit('default'), freezeRouter);
 router.use('/cooldowns', routeBodySizeLimit('default'), cooldownRouter);
 
 router.use(
-  '/notifications',
-  routeBodySizeLimit('default'),
-  notificationsRouter
+   '/notifications',
+   routeBodySizeLimit('default'),
+   notificationsRouter
 );
 router.use('/webhooks', routeBodySizeLimit('default'), horizonWebhookRouter);
 router.use('/vesting', routeBodySizeLimit('default'), vestingRouter);
@@ -116,9 +118,9 @@ router.use('/referrals', routeBodySizeLimit('default'), referralRouter);
 router.use('/contracts', routeBodySizeLimit('default'), contractsRouter);
 router.use('/watchlist', routeBodySizeLimit('default'), watchlistRouter);
 router.use(
-  '/investor/watchlist',
-  routeBodySizeLimit('default'),
-  watchlistRouter
+   '/investor/watchlist',
+   routeBodySizeLimit('default'),
+   watchlistRouter
 );
 router.use('/staking', routeBodySizeLimit('default'), stakingRouter);
 router.use('/sellers', routeBodySizeLimit('default'), sellersRouter);
