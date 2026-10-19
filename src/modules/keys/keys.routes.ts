@@ -2394,4 +2394,64 @@ router.all('/:keyId/unfreeze', (_req, res) => {
    res.set('Allow', 'POST').sendStatus(405);
 });
 
+/**
+ * GET /api/v1/keys/:keyId/lockup/:wallet
+ * Return the indexed lock-up state used by clients before enabling a sale.
+ * The short Redis cache keeps repeated countdown requests off the database.
+ */
+router.get('/:keyId/lockup/:wallet', async (req, res, next) => {
+   const keyId = String(req.params.keyId);
+   const wallet = String(req.params.wallet);
+   const cacheKey = `keys:lockup:${keyId}:${wallet}`;
+
+   try {
+      const cached = await cacheGetJson<{
+         keyId: string;
+         wallet: string;
+         is_locked: boolean;
+         unlock_timestamp: string | null;
+         seconds_remaining: number;
+      }>(cacheKey);
+      if (cached) {
+         sendSuccess(res, cached);
+         return;
+      }
+
+      const creator = await prisma.creatorProfile.findFirst({
+         where: { OR: [{ id: keyId }, { handle: keyId }] },
+         select: { id: true },
+      });
+      if (!creator) {
+         sendNotFound(res, 'Key');
+         return;
+      }
+
+      const ownership = await prisma.keyOwnership.findUnique({
+         where: {
+            ownerAddress_creatorId: {
+               ownerAddress: wallet,
+               creatorId: creator.id,
+            },
+         },
+         select: { lockupExpiresAt: true },
+      });
+      const unlockAt = ownership?.lockupExpiresAt ?? null;
+      const secondsRemaining = unlockAt
+         ? Math.max(0, Math.ceil((unlockAt.getTime() - Date.now()) / 1000))
+         : 0;
+      const result = {
+         keyId: creator.id,
+         wallet,
+         is_locked: secondsRemaining > 0,
+         unlock_timestamp: unlockAt?.toISOString() ?? null,
+         seconds_remaining: secondsRemaining,
+      };
+
+      await cacheSetJson(cacheKey, result, 30);
+      sendSuccess(res, result);
+   } catch (error) {
+      logger.error({ error, keyId, wallet }, 'Key lock-up lookup failed');
+      next(error);
+   }
+});
 export default router;
