@@ -7,6 +7,7 @@ import {
    processSocialMetadataEvents,
    SOCIAL_METADATA_UPDATED_EVENT_TYPE,
 } from './social-metadata-indexer.service';
+import { processGovernanceProposalEvents } from './governance-proposal-indexer.service';
 import { upsertPriceSnapshot } from './price-snapshot.service';
 import { prisma } from '../../utils/prisma.utils';
 import { IndexerChainEvent } from '../../utils/indexer-event-processor.utils';
@@ -23,6 +24,9 @@ jest.mock('./lp-indexer.service', () => {
       processLpEvents: jest.fn().mockResolvedValue(undefined),
    };
 });
+jest.mock('./governance-proposal-indexer.service', () => ({
+   processGovernanceProposalEvents: jest.fn(),
+}));
 
 jest.mock('../ownership/ownership.service', () => ({
    updateOwnership: jest.fn(),
@@ -72,6 +76,7 @@ jest.mock('../../utils/logger.utils', () => ({
 }));
 
 const mockSocialHandler = processSocialMetadataEvents as jest.Mock;
+const mockGovernanceHandler = processGovernanceProposalEvents as jest.Mock;
 const mockUpsertPriceSnapshot = upsertPriceSnapshot as jest.Mock;
 const mockPrisma = prisma as unknown as {
    activity: { create: jest.Mock };
@@ -176,6 +181,36 @@ describe('processIndexerEvents', () => {
 
       expect(mockSocialHandler).not.toHaveBeenCalled();
       expect(mockPrisma.activity.create).not.toHaveBeenCalled();
+      expect(mockPrisma.indexedLedger.upsert).toHaveBeenCalledTimes(1);
+   });
+
+   it('routes governance lifecycle events to the governance handler', async () => {
+      await processIndexerEvents([
+         {
+            txHash: 'tx-gov-1',
+            eventIndex: 0,
+            eventType: 'ProposalCreated',
+            ledger: 830,
+            keyId: 'key-1',
+            proposalId: 'prop-1',
+         },
+         {
+            txHash: 'tx-gov-2',
+            eventIndex: 0,
+            eventType: 'VOTE_CAST',
+            ledger: 831,
+            keyId: 'key-1',
+            proposalId: 'prop-1',
+            voter: 'walletA',
+            optionIndex: 0,
+            weight: '5',
+         },
+      ]);
+
+      expect(mockGovernanceHandler).toHaveBeenCalledTimes(1);
+      const handled = mockGovernanceHandler.mock
+         .calls[0][0] as IndexerChainEvent[];
+      expect(handled).toHaveLength(2);
       expect(mockPrisma.indexedLedger.upsert).toHaveBeenCalledTimes(1);
    });
 
