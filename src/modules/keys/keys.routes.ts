@@ -157,6 +157,12 @@ import {
 } from './key-price.service';
 import { getKeyTwap } from './key-twap-window.service';
 import { getTwapSnapshot } from './key-twap-snapshot.service';
+import {
+   DEPTH_DEFAULT_LEVELS,
+   DEPTH_MAX_LEVELS,
+   getKeyDepth,
+   getKeySpread,
+} from './key-depth.service';
 
 const priceHistoryQuerySchema = z.object({
    from: z.string().datetime(),
@@ -930,6 +936,65 @@ router.get('/:keyId/twap', async (req, res, next) => {
          window: result.window,
          computed_at: result.computed_at,
       });
+   } catch (error) {
+      next(error);
+   }
+});
+
+// ── GET /:keyId/depth and /:keyId/depth/spread (#1152) ────────
+// Order book depth from the indexed DepthUpdated events (key_depth table),
+// 5s cache invalidated per key by the indexer. Keys with no open orders
+// return empty sides (and null spread fields), not an error.
+
+const depthQuerySchema = z.object({
+   levels: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(DEPTH_MAX_LEVELS)
+      .default(DEPTH_DEFAULT_LEVELS),
+});
+
+async function resolveDepthKeyId(keyId: string): Promise<string | null> {
+   const creator = await prisma.creatorProfile.findFirst({
+      where: { OR: [{ id: keyId }, { handle: keyId }] },
+      select: { id: true },
+   });
+   return creator?.id ?? null;
+}
+
+router.get('/:keyId/depth/spread', async (req, res, next) => {
+   try {
+      const id = await resolveDepthKeyId(String(req.params.keyId));
+      if (!id) {
+         sendNotFound(res, 'Key');
+         return;
+      }
+      sendSuccess(res, await getKeySpread(id));
+   } catch (error) {
+      next(error);
+   }
+});
+
+router.get('/:keyId/depth', async (req, res, next) => {
+   const parsed = depthQuerySchema.safeParse(req.query);
+   if (!parsed.success) {
+      sendError(
+         res,
+         422,
+         ErrorCode.UNPROCESSABLE_ENTITY,
+         `Invalid levels param. Must be an integer between 1 and ${DEPTH_MAX_LEVELS}`,
+         zodIssuesToDetails(parsed.error.issues)
+      );
+      return;
+   }
+   try {
+      const id = await resolveDepthKeyId(String(req.params.keyId));
+      if (!id) {
+         sendNotFound(res, 'Key');
+         return;
+      }
+      sendSuccess(res, await getKeyDepth(id, parsed.data.levels));
    } catch (error) {
       next(error);
    }

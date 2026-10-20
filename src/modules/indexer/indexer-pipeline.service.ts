@@ -388,6 +388,19 @@ export async function processIndexerEvents(
       await processTwapUpdatedEvents(twapEvents);
    }
 
+   // DepthUpdated (#1152). Awaited before the cursor moves so a failure
+   // redelivers the batch and key_depth never misses a level change.
+   const depthEvents = events.filter(
+      event =>
+         event.eventType === 'DEPTH_UPDATED' ||
+         event.eventType === 'DepthUpdated'
+   );
+   if (depthEvents.length > 0) {
+      const { processDepthUpdatedEvents } =
+         await import('./key-depth-indexer.service');
+      await processDepthUpdatedEvents(depthEvents);
+   }
+
    const whitelistEvents = events.filter(
       event =>
          event.eventType === 'WalletWhitelisted' ||
