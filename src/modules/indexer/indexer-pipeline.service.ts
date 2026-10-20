@@ -401,6 +401,22 @@ export async function processIndexerEvents(
       await processDepthUpdatedEvents(depthEvents);
    }
 
+   const whitelistEvents = events.filter(
+      event =>
+         event.eventType === 'WalletWhitelisted' ||
+         event.eventType === 'WALLET_WHITELISTED' ||
+         event.eventType === 'WHITELIST_ADDED' ||
+         event.eventType === 'WalletRemovedFromWhitelist' ||
+         event.eventType === 'WALLET_REMOVED_FROM_WHITELIST' ||
+         event.eventType === 'WHITELIST_REMOVED'
+   );
+   if (whitelistEvents.length > 0) {
+      const { processWhitelistEvents } = await import(
+         './whitelist-indexer.service'
+      );
+      await processWhitelistEvents(whitelistEvents);
+   }
+
    // Governance lifecycle events (PROPOSAL_CREATED / VOTE_CAST /
    // PROPOSAL_EXECUTED). Processed in order before the cursor moves so a
    // batch that creates a proposal and records its votes stays consistent.
