@@ -168,6 +168,22 @@ Volume fee discount tiers and trader 30-day rolling volume lookups (#1030).
 | :----- | :-------------------------- | :------------------------------------------------------------------------------------------------------- |
 | `GET`  | `/traders/:wallet/discount` | Return current volume discount tier, discount bps, and 30-day rolling volume for any wallet (cached 5m). |
 
+## Whitelist Module
+
+Early-access whitelist status check and management endpoints (#1084).
+
+- Whitelist status query for a wallet on a creator key (cached 30s in Redis).
+- Cache invalidates on `WalletWhitelisted` and `WalletRemovedFromWhitelist` on-chain events.
+- Bulk check endpoint for multi-wallet pre-flight verification.
+
+| Method   | Path                              | Description                                                                       |
+| :------- | :-------------------------------- | :-------------------------------------------------------------------------------- |
+| `GET`    | `/keys/:key_id/whitelist/:wallet` | Return `is_whitelisted` and `whitelist_mode_enabled` flags for a wallet on a key. |
+| `POST`   | `/keys/:key_id/whitelist/check`   | Bulk check whitelist status for up to 100 wallets (`{ wallets: [] }`).            |
+| `GET`    | `/keys/:keyId/whitelist`          | Return synced whitelist entries for the key (creator JWT required).               |
+| `POST`   | `/keys/:keyId/whitelist`          | Bulk add wallets to key whitelist (creator JWT required).                         |
+| `DELETE` | `/keys/:keyId/whitelist/:wallet`  | Remove a wallet from key whitelist (creator JWT required).                        |
+
 ---
 
 ## Root and Miscellaneous
