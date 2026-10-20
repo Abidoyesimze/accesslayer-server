@@ -18,6 +18,7 @@ import webhookRouter from './webhooks/webhook.router';
 import walletsRouter from './wallets/wallets.routes';
 import alertsRouter from './alerts/alert.router';
 import invoiceRouter from './invoice/invoice.routes';
+import { issuerRouter } from './invoice/invoice-protocol.routes';
 import freezeRouter from './freeze/freeze.routes';
 import platformRouter from './platform/platform.routes';
 import searchRouter from './search/search.routes';
@@ -38,7 +39,9 @@ import stakerRouter from './revenue/staker-revenue.routes';
 import creatorRevenueRouter from './revenue/creator-revenue.routes';
 import vaultRouter from './staking/vault.routes';
 import portfolioRouter from './portfolio/portfolio.routes';
-import referralRouter from './referrals/referral-earnings.routes';
+import referralTierRouter from './referrals/referral-tier.routes';
+import referralRouter from './referrals/referrals.routes';
+import referralEarningsRouter from './referrals/referral-earnings.routes';
 import contractsRouter from './contracts/contract.routes';
 import stakingRouter from './staking/staking.routes';
 import sellersRouter from './sellers/sellers.routes';
@@ -81,6 +84,7 @@ router.use('/admin', routeBodySizeLimit('admin'), adminRouter);
 router.use('/activity', routeBodySizeLimit('default'), activityRouter);
 router.use('/ownership', routeBodySizeLimit('default'), ownershipRouter);
 router.use('/invoices', routeBodySizeLimit('default'), invoiceRouter);
+router.use('/issuers', routeBodySizeLimit('default'), issuerRouter);
 router.use('/subscriptions', routeBodySizeLimit('default'), subscriptionRouter);
 router.use(CREATORS_BASE, routeBodySizeLimit('creators'), webhookRouter);
 router.use('/wallets', routeBodySizeLimit('default'), walletsRouter);
@@ -95,9 +99,9 @@ router.use('/keys', routeBodySizeLimit('default'), freezeRouter);
 router.use('/cooldowns', routeBodySizeLimit('default'), cooldownRouter);
 
 router.use(
-  '/notifications',
-  routeBodySizeLimit('default'),
-  notificationsRouter
+   '/notifications',
+   routeBodySizeLimit('default'),
+   notificationsRouter
 );
 router.use('/webhooks', routeBodySizeLimit('default'), horizonWebhookRouter);
 router.use('/vesting', routeBodySizeLimit('default'), vestingRouter);
@@ -113,13 +117,15 @@ router.use('/staker', routeBodySizeLimit('default'), stakerRouter);
 router.use('/', routeBodySizeLimit('default'), creatorRevenueRouter);
 router.use('/staking', routeBodySizeLimit('default'), vaultRouter);
 router.use('/portfolio', routeBodySizeLimit('default'), portfolioRouter);
+router.use('/referrals', routeBodySizeLimit('default'), referralTierRouter);
 router.use('/referrals', routeBodySizeLimit('default'), referralRouter);
+router.use('/referrals', routeBodySizeLimit('default'), referralEarningsRouter);
 router.use('/contracts', routeBodySizeLimit('default'), contractsRouter);
 router.use('/watchlist', routeBodySizeLimit('default'), watchlistRouter);
 router.use(
-  '/investor/watchlist',
-  routeBodySizeLimit('default'),
-  watchlistRouter
+   '/investor/watchlist',
+   routeBodySizeLimit('default'),
+   watchlistRouter
 );
 router.use('/staking', routeBodySizeLimit('default'), stakingRouter);
 router.use('/sellers', routeBodySizeLimit('default'), sellersRouter);
