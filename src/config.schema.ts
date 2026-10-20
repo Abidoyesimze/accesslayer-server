@@ -254,6 +254,14 @@ export const envSchema = z
       // LP position registry contract
       LP_CONTRACT_ID: optionalNonEmptyString,
 
+      // Invoice protocol adapters. Unconfigured reads/execution fail closed.
+      ISSUER_REPUTATION_CONTRACT_ID: optionalNonEmptyString,
+      INVOICE_TRANSFER_CONTRACT_ID: optionalNonEmptyString,
+      INVOICE_MARKET_CONTRACT_ID: optionalNonEmptyString,
+      INVOICE_MARKET_ABI: optionalNonEmptyString,
+      INVOICE_FRAUD_CONTRACT_ID: optionalNonEmptyString,
+      INVOICE_TIMELOCK_CONTRACT_ID: optionalNonEmptyString,
+
       // Social metadata sync (Pinata gateway used to resolve avatar CIDs)
       PINATA_GATEWAY_URL: z
          .string()
