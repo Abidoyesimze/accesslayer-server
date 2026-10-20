@@ -95,6 +95,13 @@ import {
    processBuyback,
 } from './key-deprecation.service';
 import { getKeyCooldown } from './key-cooldown.service';
+import {
+   getPollVoteWeight,
+   pollWeightCacheKey,
+   PollNotFoundError,
+   PollVoteWeight,
+   POLL_WEIGHT_CACHE_SECONDS,
+} from './key-poll-weight.service';
 import { getKeyHoldingCapacity } from './key-holding-capacity.service';
 import { StellarAddressSchema } from '../wallet/wallet.schemas';
 import {
@@ -1266,6 +1273,56 @@ router.post(
             { error, keyId: req.params.keyId },
             'Key proposal vote failed'
          );
+         next(error);
+      }
+   }
+);
+
+/**
+ * GET /api/v1/keys/:keyId/polls/:pollId/weight/:wallet
+ * Return a wallet's estimated vote weight for a key poll, read from the holder
+ * balance snapshot at the poll creation block. Used by the frontend vote modal.
+ *
+ * - Returns 404 if the poll does not exist for the key
+ * - Returns 400 if the wallet is not a valid Stellar address
+ * - Returns zero weight when the wallet held nothing at the snapshot block
+ * - Cached for 60s per wallet/poll pair
+ */
+const pollWeightParamsSchema = z.object({
+   wallet: StellarAddressSchema,
+});
+
+router.get(
+   '/:keyId/polls/:pollId/weight/:wallet',
+   async (req, res, next) => {
+      const keyId = String(req.params.keyId);
+      const pollId = String(req.params.pollId);
+      const parsed = pollWeightParamsSchema.safeParse(req.params);
+      if (!parsed.success) {
+         sendValidationError(
+            res,
+            'Invalid wallet address',
+            zodIssuesToDetails(parsed.error.issues)
+         );
+         return;
+      }
+      const wallet = parsed.data.wallet;
+
+      try {
+         const cacheKey = pollWeightCacheKey(keyId, pollId, wallet);
+         const cached = await cacheGetJson<PollVoteWeight>(cacheKey);
+         if (cached !== null) {
+            return sendSuccess(res, cached);
+         }
+
+         const weight = await getPollVoteWeight(keyId, pollId, wallet);
+         await cacheSetJson(cacheKey, weight, POLL_WEIGHT_CACHE_SECONDS);
+         sendSuccess(res, weight);
+      } catch (error) {
+         if (error instanceof PollNotFoundError) {
+            sendNotFound(res, 'Poll');
+            return;
+         }
          next(error);
       }
    }
